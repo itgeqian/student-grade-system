@@ -179,6 +179,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import XLSX from 'xlsx'
 
 const store = useStore()
 const activeTab = ref('input')
@@ -344,6 +345,36 @@ const initCharts = () => {
     chart1.resize()
     chart2.resize()
   })
+}
+
+// 添加成绩统计方法
+const calculateStatistics = (scores) => {
+  const total = scores.length
+  const passing = scores.filter(s => s >= 60).length
+  const excellent = scores.filter(s => s >= 90).length
+  
+  return {
+    passingRate: ((passing / total) * 100).toFixed(2),
+    excellentRate: ((excellent / total) * 100).toFixed(2),
+    average: (scores.reduce((a, b) => a + b, 0) / total).toFixed(2)
+  }
+}
+
+// 添加导出成绩单功能
+const exportScores = () => {
+  const headers = ['学号', '姓名', '课程', '成绩']
+  const data = scoreList.value.map(item => [
+    item.studentId,
+    item.studentName,
+    item.courseName,
+    item.score
+  ])
+  
+  // 使用 xlsx 库导出 Excel
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Scores')
+  XLSX.writeFile(wb, '成绩单.xlsx')
 }
 
 onMounted(() => {

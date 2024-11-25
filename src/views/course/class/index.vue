@@ -128,6 +128,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import XLSX from 'xlsx'
 
 // 查询参数
 const queryParams = reactive({
@@ -277,6 +278,39 @@ const handleSizeChange = (val) => {
 const handleCurrentChange = (val) => {
   queryParams.pageNum = val
   handleQuery()
+}
+
+// 添加文件导入相关的方法
+const handleImportExcel = (file) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const data = e.target.result
+    const workbook = XLSX.read(data, { type: 'array' })
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+    const students = XLSX.utils.sheet_to_json(firstSheet)
+    
+    // 处理导入的学生数据
+    students.forEach(student => {
+      // TODO: 调用后端 API 保存学生数据
+      console.log('导入学生:', student)
+    })
+    
+    ElMessage.success(`成功导入 ${students.length} 名学生`)
+  }
+  reader.readAsArrayBuffer(file.raw)
+}
+
+// 添加模板下载功能
+const downloadTemplate = () => {
+  const template = [
+    ['学号', '姓名', '性别', '联系电话', '邮箱'],
+    ['2021001', '张三', '男', '13800138000', 'zhangsan@example.com']
+  ]
+  
+  const ws = XLSX.utils.aoa_to_sheet(template)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Template')
+  XLSX.writeFile(wb, '学生导入模板.xlsx')
 }
 </script>
 

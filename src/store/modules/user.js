@@ -21,7 +21,7 @@ const mutations = {
 const actions = {
   // 登录
   login({ commit }, userInfo) {
-    const { username, userType } = userInfo
+    const { username, password, userType } = userInfo
     return new Promise((resolve) => {
       // 模拟登录成功
       const token = `token-${username}-${userType}`

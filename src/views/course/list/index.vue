@@ -37,9 +37,11 @@
         <el-table-column prop="department" label="开课院系" />
         <el-table-column prop="teacher" label="任课教师" />
         <el-table-column prop="semester" label="开课学期" />
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="300">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
+            <el-button type="success" link @click="handleViewSchedule(row)">课程表</el-button>
+            <el-button type="warning" link @click="handleEnrollment(row)">选课管理</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -111,11 +113,150 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 课程表对话框 -->
+    <el-dialog
+      title="课程表"
+      v-model="scheduleVisible"
+      width="90%"
+      append-to-body
+    >
+      <div class="schedule-header">
+        <el-form :inline="true">
+          <el-form-item label="周次">
+            <el-select v-model="scheduleWeek" placeholder="请选择周次">
+              <el-option
+                v-for="i in 20"
+                :key="i"
+                :label="`第${i}周`"
+                :value="i"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="视图">
+            <el-radio-group v-model="scheduleView">
+              <el-radio-button label="list">列表</el-radio-button>
+              <el-radio-button label="grid">网格</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="exportSchedule">导出课程表</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <!-- 列表视图 -->
+      <div v-if="scheduleView === 'list'" class="schedule-container">
+        <el-table :data="scheduleData" border>
+          <el-table-column prop="day" label="星期" width="100">
+            <template #default="{ row }">
+              星期{{ numberToChinese(row.day) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="time" label="时间" width="120" />
+          <el-table-column prop="course" label="课程" />
+          <el-table-column prop="teacher" label="教师" width="100" />
+          <el-table-column prop="location" label="地点" width="100" />
+        </el-table>
+      </div>
+
+      <!-- 网格视图 -->
+      <div v-else class="schedule-grid">
+        <el-table :data="gridScheduleData" border>
+          <el-table-column prop="time" label="时间/星期" width="120" />
+          <el-table-column
+            v-for="i in 7"
+            :key="i"
+            :label="`星期${numberToChinese(i)}`"
+          >
+            <template #default="{ row }">
+              <div
+                v-if="row[`day${i}`]"
+                class="grid-cell"
+              >
+                <div class="course-name">{{ row[`day${i}`].course }}</div>
+                <div class="course-info">
+                  {{ row[`day${i}`].teacher }}
+                  <br>
+                  {{ row[`day${i}`].location }}
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
+
+    <!-- 添加选课管理对话框 -->
+    <el-dialog
+      title="选课管理"
+      v-model="enrollmentDialog.visible"
+      width="800px"
+      append-to-body
+    >
+      <div class="enrollment-header">
+        <div class="course-info">
+          <h3>{{ enrollmentDialog.course?.name }}</h3>
+          <p>任课教师：{{ enrollmentDialog.course?.teacher }}</p>
+          <p>已选人数：{{ enrollmentDialog.students.length }} / {{ enrollmentDialog.maxStudents }}</p>
+        </div>
+        <el-button type="primary" @click="handleAddStudent">添加学生</el-button>
+      </div>
+
+      <!-- 学生列表 -->
+      <el-table :data="enrollmentDialog.students" border style="width: 100%">
+        <el-table-column prop="id" label="学号" width="120" />
+        <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column prop="class" label="班级" />
+        <el-table-column prop="enrollTime" label="选课时间" width="180" />
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button type="danger" link @click="handleRemoveStudent(row)">移除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
+    <!-- 添加学生对话框 -->
+    <el-dialog
+      title="添加学生"
+      v-model="studentDialog.visible"
+      width="600px"
+      append-to-body
+    >
+      <el-form :inline="true" :model="studentDialog.query" class="search-form">
+        <el-form-item label="学号/姓名">
+          <el-input v-model="studentDialog.query.keyword" placeholder="请输入学号或姓名" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="searchStudents">搜索</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-table 
+        :data="studentDialog.list" 
+        border 
+        style="width: 100%"
+        @selection-change="handleSelectionChange"
+      >
+        <el-table-column type="selection" width="55" />
+        <el-table-column prop="id" label="学号" width="120" />
+        <el-table-column prop="name" label="姓名" width="100" />
+        <el-table-column prop="class" label="班级" />
+      </el-table>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="studentDialog.visible = false">取 消</el-button>
+          <el-button type="primary" @click="confirmAddStudents">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 // 查询参数
@@ -180,6 +321,58 @@ const rules = {
 }
 
 const courseFormRef = ref(null)
+
+// 添加课程表相关的数据和方法
+const scheduleVisible = ref(false)
+const scheduleData = ref([])
+
+// 课程表相关数据
+const scheduleWeek = ref(1)
+const scheduleView = ref('grid')
+
+// 数字转中文
+const numberToChinese = (num) => {
+  const chinese = ['日', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+  return chinese[num]
+}
+
+// 生成网格视图数据
+const gridScheduleData = computed(() => {
+  const timeSlots = [
+    { time: '8:00-9:40' },
+    { time: '10:00-11:40' },
+    { time: '14:00-15:40' },
+    { time: '16:00-17:40' }
+  ]
+
+  return timeSlots.map(slot => {
+    const row = { time: slot.time }
+    scheduleData.value.forEach(item => {
+      if (item.time === slot.time) {
+        row[`day${item.day}`] = item
+      }
+    })
+    return row
+  })
+})
+
+// 导出课程表
+const exportSchedule = () => {
+  const headers = ['星期', '时间', '课程', '教师', '地点']
+  const data = scheduleData.value.map(item => [
+    `星期${numberToChinese(item.day)}`,
+    item.time,
+    item.course,
+    item.teacher,
+    item.location
+  ])
+  
+  // 使用 xlsx 库导出 Excel
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Schedule')
+  XLSX.writeFile(wb, '课程表.xlsx')
+}
 
 // 方法
 const handleQuery = () => {
@@ -248,6 +441,124 @@ const handleCurrentChange = (val) => {
   queryParams.pageNum = val
   handleQuery()
 }
+
+// 查看课程表
+const handleViewSchedule = (row) => {
+  // 根据选中的课程生成课程表数据
+  scheduleData.value = [
+    {
+      day: 1,
+      time: '8:00-9:40',
+      course: row.name,
+      teacher: row.teacher,
+      location: '教室101'
+    },
+    {
+      day: 2,
+      time: '10:00-11:40',
+      course: row.name,
+      teacher: row.teacher,
+      location: '教室102'
+    },
+    {
+      day: 4,
+      time: '14:00-15:40',
+      course: row.name,
+      teacher: row.teacher,
+      location: '教室103'
+    }
+  ]
+  scheduleVisible.value = true
+}
+
+// 选课管理相关数据
+const enrollmentDialog = reactive({
+  visible: false,
+  course: null,
+  maxStudents: 50,
+  students: []
+})
+
+const studentDialog = reactive({
+  visible: false,
+  query: {
+    keyword: ''
+  },
+  list: [],
+  selected: []
+})
+
+// 选课管理方法
+const handleEnrollment = (row) => {
+  enrollmentDialog.course = row
+  enrollmentDialog.students = [
+    {
+      id: '2021001',
+      name: '张三',
+      class: '计算机2101',
+      enrollTime: '2024-01-15 10:00:00'
+    },
+    {
+      id: '2021002',
+      name: '李四',
+      class: '计算机2101',
+      enrollTime: '2024-01-15 10:30:00'
+    }
+  ]
+  enrollmentDialog.visible = true
+}
+
+const handleAddStudent = () => {
+  studentDialog.query.keyword = ''
+  studentDialog.list = [
+    {
+      id: '2021003',
+      name: '王五',
+      class: '计算机2102'
+    },
+    {
+      id: '2021004',
+      name: '赵六',
+      class: '计算机2102'
+    }
+  ]
+  studentDialog.visible = true
+}
+
+const handleRemoveStudent = (student) => {
+  ElMessageBox.confirm(`确认要将学生 ${student.name} 从课程中移除吗？`, '警告', {
+    type: 'warning'
+  }).then(() => {
+    enrollmentDialog.students = enrollmentDialog.students.filter(s => s.id !== student.id)
+    ElMessage.success('移除成功')
+  }).catch(() => {})
+}
+
+const searchStudents = () => {
+  // 这里应该调用后端API搜索学生
+  console.log('搜索学生:', studentDialog.query.keyword)
+}
+
+const handleSelectionChange = (val) => {
+  studentDialog.selected = val
+}
+
+const confirmAddStudents = () => {
+  if (studentDialog.selected.length === 0) {
+    ElMessage.warning('请选择要添加的学生')
+    return
+  }
+
+  // 添加选中的学生到课程
+  const newStudents = studentDialog.selected.map(student => ({
+    ...student,
+    enrollTime: new Date().toLocaleString()
+  }))
+
+  enrollmentDialog.students.push(...newStudents)
+  studentDialog.visible = false
+  ElMessage.success('添加成功')
+}
 </script>
 
 <style scoped>
@@ -269,5 +580,48 @@ const handleCurrentChange = (val) => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.schedule-container {
+  padding: 20px;
+}
+
+.schedule-header {
+  margin-bottom: 20px;
+}
+
+.schedule-grid {
+  margin-top: 20px;
+}
+
+.grid-cell {
+  min-height: 80px;
+  padding: 8px;
+}
+
+.course-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.course-info {
+  font-size: 12px;
+  color: #666;
+}
+
+.enrollment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.course-info h3 {
+  margin: 0 0 10px 0;
+}
+
+.course-info p {
+  margin: 5px 0;
+  color: #666;
 }
 </style> 

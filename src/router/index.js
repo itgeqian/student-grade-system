@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '@/layout/index.vue'
+import store from '@/store'
+import { ElMessage } from 'element-plus'
 
 export const routes = [
   {
@@ -100,6 +102,46 @@ export const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+// 定义角色权限映射
+const rolePermissions = {
+  admin: ['System', 'Course', 'Grade'], // 管理员可访问所有模块
+  teacher: ['Course', 'Grade'], // 教师可访问教务和成绩管理
+  student: ['Grade'] // 学生只能访问成绩查看
+}
+
+// 修改路由守卫实现
+router.beforeEach((to, from, next) => {
+  // 登录页面直接放行
+  if (to.path === '/login') {
+    next()
+    return
+  }
+
+  const token = store.state.user.token
+  const userType = store.state.user.userType
+
+  // 未登录跳转到登录页
+  if (!token) {
+    next('/login')
+    return
+  }
+
+  // 首页直接放行
+  if (to.path === '/dashboard') {
+    next()
+    return
+  }
+
+  // 检查路由权限
+  const routeName = to.matched[0]?.name
+  if (!routeName || rolePermissions[userType]?.includes(routeName)) {
+    next()
+  } else {
+    ElMessage.error('您没有访问该页面的权限')
+    next('/dashboard')
+  }
 })
 
 export default router 

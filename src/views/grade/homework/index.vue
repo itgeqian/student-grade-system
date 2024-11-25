@@ -237,6 +237,34 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 批量操作对话框 -->
+    <el-dialog
+      title="批量操作"
+      v-model="batchDialog.visible"
+      width="600px"
+      append-to-body
+    >
+      <el-form
+        ref="batchFormRef"
+        :model="batchForm"
+        :rules="batchRules"
+        label-width="100px"
+      >
+        <el-form-item label="操作类型" prop="type">
+          <el-select v-model="batchForm.type" placeholder="请选择操作类型">
+            <el-option label="批量删除" value="delete" />
+            <el-option label="批量评分" value="grade" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="batchDialog.visible = false">取 消</el-button>
+          <el-button type="primary" @click="submitBatch">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -345,6 +373,13 @@ const gradeRules = {
   comment: [{ required: true, message: '请输入评语', trigger: 'blur' }]
 }
 
+// 添加批量操作相关的数据
+const multipleSelection = ref([])
+const batchDialog = reactive({
+  visible: false,
+  type: '', // 'grade' 或 'delete'
+})
+
 // 方法
 const handleQuery = () => {
   loading.value = true
@@ -429,6 +464,31 @@ const handleSizeChange = (val) => {
 const handleCurrentChange = (val) => {
   queryParams.pageNum = val
   handleQuery()
+}
+
+// 批量删除方法
+const handleBatchDelete = async () => {
+  try {
+    await ElMessageBox.confirm('确认要删除选中的作业吗？', '警告', {
+      type: 'warning'
+    })
+    // TODO: 调用后端 API 批量删除
+    ElMessage.success('批量删除成功')
+    handleQuery()
+  } catch (error) {
+    console.error('批量删除失败:', error)
+  }
+}
+
+// 批量评分方法
+const handleBatchGrade = () => {
+  batchDialog.type = 'grade'
+  batchDialog.visible = true
+}
+
+// 添加表格多选功能
+const handleSelectionChange = (val) => {
+  multipleSelection.value = val
 }
 </script>
 
