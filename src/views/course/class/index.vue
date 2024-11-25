@@ -4,7 +4,18 @@
       <template #header>
         <div class="header">
           <span>班级管理</span>
-          <el-button type="primary" @click="handleAdd">新增班级</el-button>
+          <div class="header-btns">
+            <el-upload
+              class="upload-demo"
+              action="#"
+              :show-file-list="false"
+              :before-upload="handleImportExcel"
+            >
+              <el-button type="success">导入学生</el-button>
+            </el-upload>
+            <el-button type="info" @click="downloadTemplate">下载模板</el-button>
+            <el-button type="primary" @click="handleAdd">新增班级</el-button>
+          </div>
         </div>
       </template>
 
@@ -109,18 +120,77 @@
 
     <!-- 学生名单对话框 -->
     <el-dialog
-      title="学生名单"
+      :title="`${currentClass?.name} - 学生名单`"
       v-model="studentDialog.visible"
-      width="800px"
+      width="900px"
       append-to-body
     >
+      <div class="student-dialog-header">
+        <div class="class-info">
+          <p>班级编号：{{ currentClass?.id }}</p>
+          <p>班主任：{{ currentClass?.advisor }}</p>
+          <p>学生人数：{{ studentDialog.list.length }} 人</p>
+        </div>
+        <div class="header-btns">
+          <el-button type="primary" @click="handleAddStudent">添加学生</el-button>
+          <el-button type="success" @click="exportStudentList">导出名单</el-button>
+        </div>
+      </div>
+
       <el-table :data="studentDialog.list" style="width: 100%">
+        <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="id" label="学号" width="120" />
         <el-table-column prop="name" label="姓名" width="100" />
         <el-table-column prop="gender" label="性别" width="80" />
         <el-table-column prop="phone" label="联系电话" />
         <el-table-column prop="email" label="邮箱" />
+        <el-table-column label="操作" width="150">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="handleEditStudent(row)">编辑</el-button>
+            <el-button type="danger" link @click="handleRemoveStudent(row)">移除</el-button>
+          </template>
+        </el-table-column>
       </el-table>
+    </el-dialog>
+
+    <!-- 学生表单对话框 -->
+    <el-dialog
+      :title="studentForm.type === 'add' ? '添加学生' : '编辑学生'"
+      v-model="studentForm.visible"
+      width="500px"
+      append-to-body
+    >
+      <el-form
+        ref="studentFormRef"
+        :model="studentForm.data"
+        :rules="studentRules"
+        label-width="80px"
+      >
+        <el-form-item label="学号" prop="id">
+          <el-input v-model="studentForm.data.id" placeholder="请输入学号" />
+        </el-form-item>
+        <el-form-item label="姓名" prop="name">
+          <el-input v-model="studentForm.data.name" placeholder="请输入姓名" />
+        </el-form-item>
+        <el-form-item label="性别" prop="gender">
+          <el-select v-model="studentForm.data.gender" placeholder="请选择性别">
+            <el-option label="男" value="男" />
+            <el-option label="女" value="女" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="联系电话" prop="phone">
+          <el-input v-model="studentForm.data.phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="studentForm.data.email" placeholder="请输入邮箱" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="studentForm.visible = false">取 消</el-button>
+          <el-button type="primary" @click="submitStudentForm">确 定</el-button>
+        </div>
+      </template>
     </el-dialog>
   </div>
 </template>
@@ -128,7 +198,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import XLSX from 'xlsx'
+import * as XLSX from 'xlsx'
 
 // 查询参数
 const queryParams = reactive({
@@ -192,6 +262,30 @@ const studentDialog = reactive({
   visible: false,
   list: []
 })
+
+// 当前选中的班级
+const currentClass = ref(null)
+
+// 学生表单
+const studentForm = reactive({
+  visible: false,
+  type: 'add',
+  data: {
+    id: '',
+    name: '',
+    gender: '',
+    phone: '',
+    email: ''
+  }
+})
+
+const studentRules = {
+  id: [{ required: true, message: '请输入学号', trigger: 'blur' }],
+  name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  gender: [{ required: true, message: '请选择性别', trigger: 'change' }],
+  phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
+  email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }]
+}
 
 // 方法
 const handleQuery = () => {
@@ -280,7 +374,7 @@ const handleCurrentChange = (val) => {
   handleQuery()
 }
 
-// 添加文件导入相关的方法
+// 处理导入Excel
 const handleImportExcel = (file) => {
   const reader = new FileReader()
   reader.onload = (e) => {
@@ -298,9 +392,10 @@ const handleImportExcel = (file) => {
     ElMessage.success(`成功导入 ${students.length} 名学生`)
   }
   reader.readAsArrayBuffer(file.raw)
+  return false // 阻止自动上传
 }
 
-// 添加模板下载功能
+// 下载模板
 const downloadTemplate = () => {
   const template = [
     ['学号', '姓名', '性别', '联系电话', '邮箱'],
@@ -311,6 +406,75 @@ const downloadTemplate = () => {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Template')
   XLSX.writeFile(wb, '学生导入模板.xlsx')
+}
+
+// 导出学生名单
+const exportStudentList = () => {
+  const headers = ['序号', '学号', '姓名', '性别', '联系电话', '邮箱']
+  const data = studentDialog.list.map((student, index) => [
+    index + 1,
+    student.id,
+    student.name,
+    student.gender,
+    student.phone,
+    student.email
+  ])
+  
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Students')
+  XLSX.writeFile(wb, `${currentClass.value.name}-学生名单.xlsx`)
+}
+
+// 添加学生
+const handleAddStudent = () => {
+  studentForm.type = 'add'
+  studentForm.visible = true
+  Object.assign(studentForm.data, {
+    id: '',
+    name: '',
+    gender: '',
+    phone: '',
+    email: ''
+  })
+}
+
+// 编辑学生
+const handleEditStudent = (row) => {
+  studentForm.type = 'edit'
+  studentForm.visible = true
+  Object.assign(studentForm.data, row)
+}
+
+// 移除学生
+const handleRemoveStudent = (row) => {
+  ElMessageBox.confirm(`确认要将学生 ${row.name} 从班级中移除吗？`, '警告', {
+    type: 'warning'
+  }).then(() => {
+    studentDialog.list = studentDialog.list.filter(item => item.id !== row.id)
+    ElMessage.success('移除成功')
+  }).catch(() => {})
+}
+
+// 提交学生表单
+const submitStudentForm = async () => {
+  if (!studentFormRef.value) return
+  
+  try {
+    await studentFormRef.value.validate()
+    if (studentForm.type === 'add') {
+      studentDialog.list.push({ ...studentForm.data })
+    } else {
+      const index = studentDialog.list.findIndex(item => item.id === studentForm.data.id)
+      if (index !== -1) {
+        studentDialog.list[index] = { ...studentForm.data }
+      }
+    }
+    studentForm.visible = false
+    ElMessage.success(studentForm.type === 'add' ? '添加成功' : '修改成功')
+  } catch (error) {
+    console.error('表单验证失败:', error)
+  }
 }
 </script>
 
@@ -333,5 +497,26 @@ const downloadTemplate = () => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.header-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.student-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.class-info p {
+  margin: 5px 0;
+  color: #666;
+}
+
+.upload-demo {
+  display: inline-block;
 }
 </style> 

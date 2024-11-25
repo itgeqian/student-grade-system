@@ -7,7 +7,10 @@
           <template #header>
             <div class="header">
               <span>成绩录入</span>
-              <el-button v-if="isTeacher" type="primary" @click="handleSaveScores">保存成绩</el-button>
+              <div class="header-btns">
+                <el-button v-if="isTeacher" type="primary" @click="handleSaveScores">保存成绩</el-button>
+                <el-button v-if="isTeacher" type="success" @click="handlePublishScores">发布成绩</el-button>
+              </div>
             </div>
           </template>
 
@@ -123,6 +126,13 @@
                 {{ calculateTotalScore(row) }}
               </template>
             </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.published ? 'success' : 'warning'">
+                  {{ row.published ? '已发布' : '未发布' }}
+                </el-tag>
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
       </el-tab-pane>
@@ -177,9 +187,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
-import XLSX from 'xlsx'
+import * as XLSX from 'xlsx'
 
 const store = useStore()
 const activeTab = ref('input')
@@ -274,12 +284,50 @@ const calculateTotalScore = (row) => {
   return Math.round(total)
 }
 
+// 保存成绩
 const handleSaveScores = () => {
+  // 验证成绩构成比例
+  const total = scoreSettings.homework + scoreSettings.experiment + scoreSettings.final
+  if (total !== 100) {
+    ElMessage.error('成绩构成比例之和必须为100%')
+    return
+  }
+
+  // TODO: 调用后端API保存成绩
   ElMessage.success('成绩保存成功')
 }
 
+// 发布成绩
+const handlePublishScores = () => {
+  ElMessageBox.confirm('确认要发布成绩吗？发布后学生将可以查看成绩', '提示', {
+    type: 'warning'
+  }).then(() => {
+    // TODO: 调用后端API发布成绩
+    scoreList.value.forEach(item => {
+      item.published = true
+    })
+    ElMessage.success('成绩发布成功')
+  }).catch(() => {})
+}
+
+// 导出成绩
 const handleExport = () => {
-  ElMessage.success('统计数据导出成功')
+  const headers = ['学号', '姓名', '班级', '作业成绩', '实验成绩', '期末成绩', '总评成绩']
+  const data = scoreList.value.map(item => [
+    item.studentId,
+    item.studentName,
+    item.className,
+    item.homeworkScore,
+    item.experimentScore,
+    item.finalScore,
+    calculateTotalScore(item)
+  ])
+  
+  // 使用 xlsx 库导出 Excel
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Scores')
+  XLSX.writeFile(wb, '成绩单.xlsx')
 }
 
 // 初始化图表
@@ -360,23 +408,6 @@ const calculateStatistics = (scores) => {
   }
 }
 
-// 添加导出成绩单功能
-const exportScores = () => {
-  const headers = ['学号', '姓名', '课程', '成绩']
-  const data = scoreList.value.map(item => [
-    item.studentId,
-    item.studentName,
-    item.courseName,
-    item.score
-  ])
-  
-  // 使用 xlsx 库导出 Excel
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Scores')
-  XLSX.writeFile(wb, '成绩单.xlsx')
-}
-
 onMounted(() => {
   initCharts()
 })
@@ -418,5 +449,16 @@ onMounted(() => {
 
 .ml-5 {
   margin-left: 5px;
+}
+
+.header-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style> 

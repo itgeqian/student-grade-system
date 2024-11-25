@@ -258,7 +258,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-
+import * as XLSX from 'xlsx'
 // 查询参数
 const queryParams = reactive({
   pageNum: 1,
