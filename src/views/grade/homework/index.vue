@@ -95,7 +95,6 @@
       title="布置作业"
       v-model="homeworkDialog.visible"
       width="600px"
-      append-to-body
     >
       <el-form
         ref="homeworkFormRef"
@@ -141,9 +140,6 @@
             <template #trigger>
               <el-button type="primary">选择文件</el-button>
             </template>
-            <el-button class="ml-3" @click="submitUpload">
-              上传到服务器
-            </el-button>
           </el-upload>
         </el-form-item>
       </el-form>
@@ -160,7 +156,6 @@
       title="提交作业"
       v-model="submitDialog.visible"
       width="600px"
-      append-to-body
     >
       <el-form
         ref="submitFormRef"
@@ -186,9 +181,6 @@
             <template #trigger>
               <el-button type="primary">选择文件</el-button>
             </template>
-            <el-button class="ml-3" @click="submitUpload">
-              上传到服务器
-            </el-button>
           </el-upload>
         </el-form-item>
       </el-form>
@@ -205,7 +197,6 @@
       title="批改作业"
       v-model="gradeDialog.visible"
       width="600px"
-      append-to-body
     >
       <el-form
         ref="gradeFormRef"
@@ -213,6 +204,9 @@
         :rules="gradeRules"
         label-width="100px"
       >
+        <el-form-item label="学生答案" prop="answer">
+          <div class="answer-content">{{ gradeDialog.answer }}</div>
+        </el-form-item>
         <el-form-item label="成绩" prop="score">
           <el-input-number
             v-model="gradeForm.score"
@@ -229,6 +223,16 @@
             placeholder="请输入评语"
           />
         </el-form-item>
+        <el-form-item label="快捷评语">
+          <el-select v-model="quickComment" placeholder="选择快捷评语" @change="handleQuickComment">
+            <el-option
+              v-for="item in quickComments"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -238,32 +242,30 @@
       </template>
     </el-dialog>
 
-    <!-- 批量操作对话框 -->
+    <!-- 查看作业对话框 -->
     <el-dialog
-      title="批量操作"
-      v-model="batchDialog.visible"
+      :title="viewDialog.title"
+      v-model="viewDialog.visible"
       width="600px"
-      append-to-body
     >
-      <el-form
-        ref="batchFormRef"
-        :model="batchForm"
-        :rules="batchRules"
-        label-width="100px"
-      >
-        <el-form-item label="操作类型" prop="type">
-          <el-select v-model="batchForm.type" placeholder="请选择操作类型">
-            <el-option label="批量删除" value="delete" />
-            <el-option label="批量评分" value="grade" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="batchDialog.visible = false">取 消</el-button>
-          <el-button type="primary" @click="submitBatch">确 定</el-button>
+      <div class="view-content">
+        <div class="view-item">
+          <label>作业内容：</label>
+          <div>{{ viewDialog.content }}</div>
         </div>
-      </template>
+        <div v-if="viewDialog.answer" class="view-item">
+          <label>作业答案：</label>
+          <div>{{ viewDialog.answer }}</div>
+        </div>
+        <div v-if="viewDialog.score" class="view-item">
+          <label>成绩：</label>
+          <div>{{ viewDialog.score }}</div>
+        </div>
+        <div v-if="viewDialog.comment" class="view-item">
+          <label>教师评语：</label>
+          <div>{{ viewDialog.comment }}</div>
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -406,7 +408,12 @@ const handleAdd = () => {
 }
 
 const handleView = (row) => {
-  ElMessage.info('查看作业详情：' + row.title)
+  viewDialog.title = row.title
+  viewDialog.content = '这是作业内容...'
+  viewDialog.answer = isStudent.value ? '' : '这是学生答案...'
+  viewDialog.score = row.score
+  viewDialog.comment = '这是教师评语...'
+  viewDialog.visible = true
 }
 
 const handleSubmit = (row) => {
@@ -490,6 +497,32 @@ const handleBatchGrade = () => {
 const handleSelectionChange = (val) => {
   multipleSelection.value = val
 }
+
+// 快捷评语列表
+const quickComments = [
+  '答案正确，思路清晰',
+  '基本正确，有待改进',
+  '请认真完成作业',
+  '作业完成度不够'
+]
+
+const quickComment = ref('')
+
+// 查看作业对话框数据
+const viewDialog = reactive({
+  visible: false,
+  title: '',
+  content: '',
+  answer: '',
+  score: '',
+  comment: ''
+})
+
+// 处理快捷评语选择
+const handleQuickComment = (value) => {
+  gradeForm.comment = value
+  quickComment.value = ''
+}
 </script>
 
 <style scoped>
@@ -515,5 +548,33 @@ const handleSelectionChange = (val) => {
 
 .upload-demo {
   margin-bottom: 20px;
+}
+
+.answer-content {
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  min-height: 100px;
+}
+
+.view-content {
+  padding: 20px;
+}
+
+.view-item {
+  margin-bottom: 20px;
+}
+
+.view-item label {
+  font-weight: bold;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.view-item div {
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  min-height: 40px;
 }
 </style> 

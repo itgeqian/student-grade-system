@@ -30,25 +30,25 @@ export const routes = [
     meta: { title: '系统管理', icon: 'Setting' },
     children: [
       {
-        path: 'user',
+        path: '/system/user',
         name: 'User',
         component: () => import('@/views/system/user/index.vue'),
         meta: { title: '用户管理' }
       },
       {
-        path: 'department',
+        path: '/system/department',
         name: 'Department',
         component: () => import('@/views/system/department/index.vue'),
         meta: { title: '部门管理' }
       },
       {
-        path: 'teacher',
+        path: '/system/teacher',
         name: 'Teacher',
         component: () => import('@/views/system/teacher/index.vue'),
         meta: { title: '教师管理' }
       },
       {
-        path: 'student',
+        path: '/system/student',
         name: 'Student',
         component: () => import('@/views/system/student/index.vue'),
         meta: { title: '学生管理' }
@@ -63,13 +63,13 @@ export const routes = [
     meta: { title: '教务管理', icon: 'Reading' },
     children: [
       {
-        path: 'list',
+        path: '/course/list',
         name: 'CourseList',
         component: () => import('@/views/course/list/index.vue'),
         meta: { title: '课程管理' }
       },
       {
-        path: 'class',
+        path: '/course/class',
         name: 'CourseClass',
         component: () => import('@/views/course/class/index.vue'),
         meta: { title: '班级管理' }
@@ -84,13 +84,13 @@ export const routes = [
     meta: { title: '成绩管理', icon: 'Document' },
     children: [
       {
-        path: 'homework',
+        path: '/grade/homework',
         name: 'Homework',
         component: () => import('@/views/grade/homework/index.vue'),
         meta: { title: '作业管理' }
       },
       {
-        path: 'score',
+        path: '/grade/score',
         name: 'Score',
         component: () => import('@/views/grade/score/index.vue'),
         meta: { title: '成绩管理' }
