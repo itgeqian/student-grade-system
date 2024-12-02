@@ -245,12 +245,40 @@
           <div class="chart-container" ref="titleChartRef"></div>
         </el-card>
       </el-col>
+      
+      <!-- 添加工作量统计图表 -->
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>教师工作量统计</span>
+              <el-select v-model="workloadStats.semester" placeholder="选择学期" size="small">
+                <el-option label="2023-2024-1" value="2023-2024-1" />
+                <el-option label="2023-2024-2" value="2023-2024-2" />
+              </el-select>
+            </div>
+          </template>
+          <div class="chart-container" ref="workloadChartRef"></div>
+        </el-card>
+      </el-col>
+      
+      <!-- 添加课程类型分布图表 -->
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>课程类型分布</span>
+            </div>
+          </template>
+          <div class="chart-container" ref="courseTypeChartRef"></div>
+        </el-card>
+      </el-col>
     </el-row>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
 import * as echarts from 'echarts'
@@ -389,8 +417,17 @@ const statistics = reactive({
 // 添加图表引用
 const departmentChartRef = ref(null)
 const titleChartRef = ref(null)
+const workloadChartRef = ref(null)
+const courseTypeChartRef = ref(null)
 let departmentChart = null
 let titleChart = null
+let workloadChart = null
+let courseTypeChart = null
+
+// 添加工作量统计相关数据
+const workloadStats = reactive({
+  semester: '2023-2024-1'
+})
 
 // 计算统计数据
 const calculateStatistics = () => {
@@ -477,17 +514,123 @@ const initTitleChart = () => {
   titleChart.setOption(option)
 }
 
-// 更新所有统计和图表
+// 初始化工作量统计图表
+const initWorkloadChart = () => {
+  if (!workloadChartRef.value) return
+  
+  workloadChart = echarts.init(workloadChartRef.value)
+  
+  // 模拟工作量数据
+  const data = originalTeacherList.value.map(teacher => ({
+    name: teacher.name,
+    value: Math.floor(Math.random() * 200 + 100) // 模拟课时数
+  })).sort((a, b) => b.value - a.value) // 按课时数排序
+  
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'value',
+      name: '课时数'
+    },
+    yAxis: {
+      type: 'category',
+      data: data.map(item => item.name)
+    },
+    series: [
+      {
+        name: '课时数',
+        type: 'bar',
+        data: data.map(item => item.value),
+        label: {
+          show: true,
+          position: 'right'
+        }
+      }
+    ]
+  }
+  
+  workloadChart.setOption(option)
+}
+
+// 初始化课程类型分布图表
+const initCourseTypeChart = () => {
+  if (!courseTypeChartRef.value) return
+  
+  courseTypeChart = echarts.init(courseTypeChartRef.value)
+  
+  // 模拟课程类型数据
+  const data = [
+    { name: '必修课', value: 15 },
+    { name: '选修课', value: 8 },
+    { name: '实验课', value: 6 },
+    { name: '实践课', value: 4 }
+  ]
+  
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left'
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: ['40%', '70%'], // 设置为环形图
+        avoidLabelOverlap: false,
+        label: {
+          show: true,
+          position: 'outside',
+          formatter: '{b}: {c}门'
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: '16',
+            fontWeight: 'bold'
+          }
+        },
+        data: data
+      }
+    ]
+  }
+  
+  courseTypeChart.setOption(option)
+}
+
+// 修改更新统计方法
 const updateStatistics = () => {
   calculateStatistics()
   initDepartmentChart()
   initTitleChart()
+  initWorkloadChart()
+  initCourseTypeChart()
 }
 
-// 监听窗口大小变化
+// 修改窗口大小监听
 window.addEventListener('resize', () => {
   departmentChart?.resize()
   titleChart?.resize()
+  workloadChart?.resize()
+  courseTypeChart?.resize()
+})
+
+// 添加学期变化监听
+watch(() => workloadStats.semester, () => {
+  initWorkloadChart() // 重新加载工作量数据
 })
 
 // 组件挂载时初始化图表
@@ -583,7 +726,6 @@ const handleDelete = (row) => {
 
 const handleViewCourses = (row) => {
   currentTeacher.value = row
-  // 模拟获取教师课程列表
   courseDialog.list = [
     {
       id: 'CS001',
@@ -591,7 +733,10 @@ const handleViewCourses = (row) => {
       credit: 3,
       hours: 48,
       semester: '2023-2024-1',
-      studentCount: 60
+      studentCount: 60,
+      type: '必修课',
+      schedule: '周一 1-2节',
+      classroom: '教室101'
     },
     {
       id: 'CS002',
@@ -599,7 +744,10 @@ const handleViewCourses = (row) => {
       credit: 4,
       hours: 64,
       semester: '2023-2024-1',
-      studentCount: 55
+      studentCount: 55,
+      type: '必修课',
+      schedule: '周三 3-4节',
+      classroom: '教室102'
     }
   ]
   courseDialog.visible = true
@@ -838,6 +986,28 @@ const formatDepartment = (row) => {
 }
 
 .chart-container {
-  height: 300px;
+  height: 400px;
+}
+
+/* 添加新的样式 */
+.chart-container {
+  height: 400px; /* 增加图表高度 */
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 优化图表布局 */
+.statistics-charts .el-card {
+  margin-bottom: 20px;
+}
+
+/* 优化图表标题样式 */
+.card-header span {
+  font-weight: bold;
+  color: #303133;
 }
 </style> 
