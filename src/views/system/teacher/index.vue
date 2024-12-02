@@ -14,6 +14,8 @@
               <el-button type="success">导入教师</el-button>
             </el-upload>
             <el-button type="info" @click="downloadTemplate">下载模板</el-button>
+            <el-button type="warning" @click="exportSelected">导出选中</el-button>
+            <el-button type="danger" @click="handleBatchDelete">批量删除</el-button>
             <el-button type="primary" @click="handleAdd">新增教师</el-button>
           </div>
         </div>
@@ -44,7 +46,7 @@
       </el-form>
 
       <!-- 教师列表 -->
-      <el-table :data="teacherList" v-loading="loading" border>
+      <el-table :data="teacherList" v-loading="loading" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="工号" width="120" />
         <el-table-column prop="name" label="姓名" width="120" />
@@ -268,12 +270,39 @@ const courseDialog = reactive({
 
 const currentTeacher = ref(null)
 
+// 添加选择相关数据
+const selectedRows = ref([])
+
+// 添加一个变量来存储原始数据
+const originalTeacherList = ref([
+  {
+    id: 'T001',
+    name: '张老师',
+    department: 1,
+    title: '教授',
+    phone: '13800138000',
+    email: 'zhang@example.com',
+    status: 1,
+    remark: ''
+  },
+  {
+    id: 'T002',
+    name: '李老师',
+    department: 1,
+    title: '副教授',
+    phone: '13800138001',
+    email: 'li@example.com',
+    status: 1,
+    remark: ''
+  }
+])
+
 // 方法
 const handleQuery = () => {
   loading.value = true
   
   // 根据搜索条件过滤教师列表
-  const filteredList = teacherList.value.filter(teacher => {
+  const filteredList = originalTeacherList.value.filter(teacher => {
     const matchId = !queryParams.id || 
       teacher.id.toLowerCase().includes(queryParams.id.toLowerCase())
     
@@ -292,9 +321,8 @@ const handleQuery = () => {
   const start = (queryParams.pageNum - 1) * queryParams.pageSize
   const end = start + queryParams.pageSize
   
-  // 只显示过滤后的分页数据
-  const displayList = filteredList.slice(start, end)
-  teacherList.value = displayList
+  // 更新显示列表
+  teacherList.value = filteredList.slice(start, end)
   
   loading.value = false
 }
@@ -346,7 +374,10 @@ const handleDelete = (row) => {
   ElMessageBox.confirm('确认要删除该教师吗？删除后无法恢复', '警告', {
     type: 'warning'
   }).then(() => {
-    teacherList.value = teacherList.value.filter(item => item.id !== row.id)
+    // 从原始数据中删除
+    originalTeacherList.value = originalTeacherList.value.filter(item => item.id !== row.id)
+    // 重新查询以更新显示
+    handleQuery()
     ElMessage.success('删除成功')
   }).catch(() => {})
 }
@@ -381,16 +412,19 @@ const submitForm = async () => {
   try {
     await teacherFormRef.value.validate()
     if (dialog.type === 'add') {
-      // TODO: 调用API添加教师
-      teacherList.value.push({
-        ...teacherForm
+      // 生成新ID
+      const newId = `T${String(originalTeacherList.value.length + 1).padStart(3, '0')}`
+      // 添加到原始数据
+      originalTeacherList.value.push({
+        ...teacherForm,
+        id: newId
       })
     } else {
-      // TODO: 调用API更新教师
-      const index = teacherList.value.findIndex(item => item.id === teacherForm.id)
+      // 更新原始数据
+      const index = originalTeacherList.value.findIndex(item => item.id === teacherForm.id)
       if (index !== -1) {
-        teacherList.value[index] = {
-          ...teacherList.value[index],
+        originalTeacherList.value[index] = {
+          ...originalTeacherList.value[index],
           ...teacherForm
         }
       }
@@ -398,6 +432,7 @@ const submitForm = async () => {
     
     dialog.visible = false
     ElMessage.success(dialog.type === 'add' ? '添加成功' : '修改成功')
+    // 重新查询以更新显示
     handleQuery()
   } catch (error) {
     console.error('表单验证失败:', error)
@@ -438,10 +473,10 @@ const downloadTemplate = () => {
   XLSX.writeFile(wb, '教师导入模板.xlsx')
 }
 
-// 添加一个方法来重新加载所有数据
+// 修改重新加载数据方法
 const reloadData = () => {
   // 这里应该是从后端获取数据
-  teacherList.value = [
+  originalTeacherList.value = [
     {
       id: 'T001',
       name: '张老师',
@@ -463,6 +498,67 @@ const reloadData = () => {
       remark: ''
     }
   ]
+  // 重新查询以更新显示
+  handleQuery()
+}
+
+// 添加选择相关方法
+const handleSelectionChange = (val) => {
+  selectedRows.value = val
+}
+
+// 修改批量删除方法
+const handleBatchDelete = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请选择要删除的教师')
+    return
+  }
+
+  ElMessageBox.confirm(
+    `确认要删除选中的 ${selectedRows.value.length} 名教师吗？删除后无法恢复`, 
+    '警告',
+    {
+      type: 'warning'
+    }
+  ).then(() => {
+    const ids = selectedRows.value.map(row => row.id)
+    // 从原始数据中删除
+    originalTeacherList.value = originalTeacherList.value.filter(item => !ids.includes(item.id))
+    // 重新查询以更新显示
+    handleQuery()
+    ElMessage.success('删除成功')
+    // 清空选择
+    selectedRows.value = []
+  }).catch(() => {})
+}
+
+// 添加导出选中数据方法
+const exportSelected = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请选择要导出的教师')
+    return
+  }
+
+  const headers = ['工号', '姓名', '所属部门', '职称', '联系电话', '邮箱', '状态']
+  const data = selectedRows.value.map(teacher => [
+    teacher.id,
+    teacher.name,
+    departmentOptions.value.find(dept => dept.id === teacher.department)?.name || '',
+    teacher.title,
+    teacher.phone,
+    teacher.email,
+    teacher.status === 1 ? '在职' : '离职'
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Teachers')
+  XLSX.writeFile(wb, '教师信息.xlsx')
+}
+
+// 优化表格显示
+const formatDepartment = (row) => {
+  return departmentOptions.value.find(dept => dept.id === row.department)?.name || ''
 }
 </script>
 
@@ -494,5 +590,27 @@ const reloadData = () => {
 
 .upload-demo {
   display: inline-block;
+}
+
+.table-operations {
+  display: flex;
+  gap: 8px;
+}
+
+/* 优化表格样式 */
+:deep(.el-table) {
+  margin-top: 15px;
+}
+
+:deep(.el-table th) {
+  background-color: #f5f7fa;
+}
+
+:deep(.el-table td) {
+  padding: 8px 0;
+}
+
+:deep(.el-tag) {
+  margin: 0 2px;
 }
 </style> 
