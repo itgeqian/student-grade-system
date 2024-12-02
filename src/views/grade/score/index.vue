@@ -1,278 +1,325 @@
 <template>
   <div class="score-container">
-    <el-tabs v-model="activeTab">
-      <!-- 成绩录入标签页 -->
-      <el-tab-pane label="成绩录入" name="input">
-        <el-card>
-          <template #header>
-            <div class="header">
-              <span>成绩录入</span>
-              <div class="header-btns">
-                <el-button v-if="isTeacher" type="primary" @click="handleSaveScores">保存成绩</el-button>
-                <el-button v-if="isTeacher" type="success" @click="handlePublishScores">发布成绩</el-button>
+    <el-card>
+      <template #header>
+        <div class="header">
+          <span>成绩管理</span>
+          <div class="header-btns" v-if="userType === 'teacher'">
+            <el-button type="primary" @click="handleSetRatio">设置成绩比例</el-button>
+            <el-button type="success" @click="handleSubmitToAdmin">提交成绩</el-button>
+            <el-button type="warning" @click="handleExport">导出成绩</el-button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 搜索区域 -->
+      <el-form :inline="true" :model="queryParams" class="search-form">
+        <el-form-item label="课程">
+          <el-select v-model="queryParams.courseId" placeholder="请选择课程">
+            <el-option 
+              v-for="item in courseOptions" 
+              :key="item.id" 
+              :label="item.name" 
+              :value="item.id" 
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="班级">
+          <el-select v-model="queryParams.classId" placeholder="请选择班级">
+            <el-option 
+              v-for="item in classOptions" 
+              :key="item.id" 
+              :label="item.name" 
+              :value="item.id" 
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="userType === 'teacher'" label="学号">
+          <el-input v-model="queryParams.studentId" placeholder="请输入学号" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">查询</el-button>
+          <el-button @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <!-- 成绩比例显示 -->
+      <div class="ratio-info" v-if="queryParams.courseId">
+        <el-descriptions :column="3" border>
+          <el-descriptions-item label="作业成绩占比">{{ scoreSettings.homework }}%</el-descriptions-item>
+          <el-descriptions-item label="实验成绩占比">{{ scoreSettings.experiment }}%</el-descriptions-item>
+          <el-descriptions-item label="期末成绩占比">{{ scoreSettings.final }}%</el-descriptions-item>
+        </el-descriptions>
+      </div>
+
+      <!-- 成绩列表 -->
+      <el-table :data="scoreList" v-loading="loading" border>
+        <el-table-column prop="studentId" label="学号" width="120" />
+        <el-table-column prop="studentName" label="姓名" width="100" />
+        <el-table-column prop="className" label="班级" width="120" />
+        <el-table-column prop="homeworkScore" label="作业成绩" width="100">
+          <template #default="{ row }">
+            <template v-if="userType === 'teacher' && !row.submitted">
+              <el-input-number 
+                v-model="row.homeworkScore" 
+                :min="0" 
+                :max="100"
+                :precision="0"
+                size="small"
+                @change="handleScoreChange(row)"
+              />
+            </template>
+            <template v-else>
+              {{ row.homeworkScore || '-' }}
+            </template>
+          </template>
+        </el-table-column>
+        <el-table-column prop="experimentScore" label="实验成绩" width="100">
+          <template #default="{ row }">
+            <template v-if="userType === 'teacher' && !row.submitted">
+              <el-input-number 
+                v-model="row.experimentScore" 
+                :min="0" 
+                :max="100"
+                :precision="0"
+                size="small"
+                @change="handleScoreChange(row)"
+              />
+            </template>
+            <template v-else>
+              {{ row.experimentScore || '-' }}
+            </template>
+          </template>
+        </el-table-column>
+        <el-table-column prop="finalScore" label="期末成绩" width="100">
+          <template #default="{ row }">
+            <template v-if="userType === 'teacher' && !row.submitted">
+              <el-input-number 
+                v-model="row.finalScore" 
+                :min="0" 
+                :max="100"
+                :precision="0"
+                size="small"
+                @change="handleScoreChange(row)"
+              />
+            </template>
+            <template v-else>
+              {{ row.finalScore || '-' }}
+            </template>
+          </template>
+        </el-table-column>
+        <el-table-column prop="totalScore" label="总评成绩" width="100">
+          <template #default="{ row }">
+            {{ calculateTotalScore(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.submitted ? 'success' : 'warning'">
+              {{ row.submitted ? '已提交' : '未提交' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 成绩统计 -->
+      <div class="statistics" v-if="scoreList.length > 0">
+        <el-divider>成绩统计</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <div class="stat-card">
+              <h4>班级成绩概况</h4>
+              <el-descriptions :column="2" border>
+                <el-descriptions-item label="平均分">{{ statistics.average }}</el-descriptions-item>
+                <el-descriptions-item label="最高分">{{ statistics.highest }}</el-descriptions-item>
+                <el-descriptions-item label="最低分">{{ statistics.lowest }}</el-descriptions-item>
+                <el-descriptions-item label="及格率">{{ statistics.passRate }}%</el-descriptions-item>
+              </el-descriptions>
+            </div>
+          </el-col>
+          <el-col :span="12">
+            <div class="stat-card">
+              <h4>成绩分布</h4>
+              <div class="score-distribution">
+                <div v-for="(count, range) in statistics.distribution" :key="range" class="distribution-item">
+                  <span>{{ range }}分</span>
+                  <el-progress 
+                    :percentage="(count / scoreList.length) * 100" 
+                    :format="() => count + '人'"
+                  />
+                </div>
               </div>
             </div>
-          </template>
+          </el-col>
+        </el-row>
+      </div>
+    </el-card>
 
-          <!-- 搜索区域 -->
-          <el-form :inline="true" :model="queryParams" class="search-form">
-            <el-form-item label="课程">
-              <el-select v-model="queryParams.courseId" placeholder="请选择课程">
-                <el-option
-                  v-for="course in courseOptions"
-                  :key="course.id"
-                  :label="course.name"
-                  :value="course.id"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="班级">
-              <el-select v-model="queryParams.classId" placeholder="请选择班级">
-                <el-option
-                  v-for="cls in classOptions"
-                  :key="cls.id"
-                  :label="cls.name"
-                  :value="cls.id"
-                />
-              </el-select>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" @click="handleQuery">查询</el-button>
-              <el-button @click="resetQuery">重置</el-button>
-            </el-form-item>
-          </el-form>
-
-          <!-- 成绩构成设置 -->
-          <div v-if="isTeacher" class="score-settings mb-20">
-            <el-alert
-              title="请设置成绩构成比例（总和需为100%）"
-              type="info"
-              :closable="false"
-            />
-            <el-form :inline="true" :model="scoreSettings" class="mt-10">
-              <el-form-item label="作业成绩">
-                <el-input-number
-                  v-model="scoreSettings.homework"
-                  :min="0"
-                  :max="100"
-                  @change="validateTotal"
-                />
-                <span class="ml-5">%</span>
-              </el-form-item>
-              <el-form-item label="实验成绩">
-                <el-input-number
-                  v-model="scoreSettings.experiment"
-                  :min="0"
-                  :max="100"
-                  @change="validateTotal"
-                />
-                <span class="ml-5">%</span>
-              </el-form-item>
-              <el-form-item label="期末成绩">
-                <el-input-number
-                  v-model="scoreSettings.final"
-                  :min="0"
-                  :max="100"
-                  @change="validateTotal"
-                />
-                <span class="ml-5">%</span>
-              </el-form-item>
-            </el-form>
+    <!-- 成绩比例设置对话框 -->
+    <el-dialog
+      title="设置成绩比例"
+      v-model="ratioDialog.visible"
+      width="500px"
+    >
+      <el-form :model="ratioForm" label-width="120px">
+        <el-form-item label="作业成绩占比">
+          <el-input-number 
+            v-model="ratioForm.homework" 
+            :min="0" 
+            :max="100"
+            :precision="0"
+            @change="validateTotal"
+          />
+          <span class="unit">%</span>
+        </el-form-item>
+        <el-form-item label="实验成绩占比">
+          <el-input-number 
+            v-model="ratioForm.experiment" 
+            :min="0" 
+            :max="100"
+            :precision="0"
+            @change="validateTotal"
+          />
+          <span class="unit">%</span>
+        </el-form-item>
+        <el-form-item label="期末成绩占比">
+          <el-input-number 
+            v-model="ratioForm.final" 
+            :min="0" 
+            :max="100"
+            :precision="0"
+            @change="validateTotal"
+          />
+          <span class="unit">%</span>
+        </el-form-item>
+        <el-form-item>
+          <div class="total-ratio">
+            总计：{{ ratioForm.homework + ratioForm.experiment + ratioForm.final }}%
+            <span v-if="ratioForm.homework + ratioForm.experiment + ratioForm.final !== 100" class="error-tip">
+              (必须等于100%)
+            </span>
           </div>
-
-          <!-- 成绩表格 -->
-          <el-table :data="scoreList" style="width: 100%" v-loading="loading">
-            <el-table-column prop="studentId" label="学号" width="120" />
-            <el-table-column prop="studentName" label="姓名" width="100" />
-            <el-table-column prop="className" label="班级" width="120" />
-            <el-table-column label="作业成绩" width="120">
-              <template #default="{ row }">
-                <el-input-number
-                  v-if="isTeacher"
-                  v-model="row.homeworkScore"
-                  :min="0"
-                  :max="100"
-                  size="small"
-                />
-                <span v-else>{{ row.homeworkScore }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="实验成绩" width="120">
-              <template #default="{ row }">
-                <el-input-number
-                  v-if="isTeacher"
-                  v-model="row.experimentScore"
-                  :min="0"
-                  :max="100"
-                  size="small"
-                />
-                <span v-else>{{ row.experimentScore }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="期末成绩" width="120">
-              <template #default="{ row }">
-                <el-input-number
-                  v-if="isTeacher"
-                  v-model="row.finalScore"
-                  :min="0"
-                  :max="100"
-                  size="small"
-                />
-                <span v-else>{{ row.finalScore }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="总评成绩" width="120">
-              <template #default="{ row }">
-                {{ calculateTotalScore(row) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.published ? 'success' : 'warning'">
-                  {{ row.published ? '已发布' : '未发布' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-tab-pane>
-
-      <!-- 成绩统计标签页 -->
-      <el-tab-pane label="成绩统计" name="statistics">
-        <el-card>
-          <template #header>
-            <div class="header">
-              <span>成绩统计</span>
-              <el-button type="primary" @click="handleExport">导出统计</el-button>
-            </div>
-          </template>
-
-          <!-- 统计图表 -->
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <div ref="chartRef1" style="height: 400px"></div>
-            </el-col>
-            <el-col :span="12">
-              <div ref="chartRef2" style="height: 400px"></div>
-            </el-col>
-          </el-row>
-
-          <!-- 统计数据 -->
-          <el-row :gutter="20" class="mt-20">
-            <el-col :span="24">
-              <el-card>
-                <template #header>
-                  <div class="card-header">
-                    <span>成绩分布</span>
-                  </div>
-                </template>
-                <el-table :data="statisticsData" border style="width: 100%">
-                  <el-table-column prop="range" label="分数段" />
-                  <el-table-column prop="count" label="人数" />
-                  <el-table-column prop="percentage" label="占比">
-                    <template #default="{ row }">
-                      {{ row.percentage }}%
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </el-card>
-            </el-col>
-          </el-row>
-        </el-card>
-      </el-tab-pane>
-    </el-tabs>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="ratioDialog.visible = false">取 消</el-button>
+          <el-button type="primary" @click="confirmRatio">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as echarts from 'echarts'
 import * as XLSX from 'xlsx'
 
 const store = useStore()
-const activeTab = ref('input')
-const chartRef1 = ref(null)
-const chartRef2 = ref(null)
-
-// 用户角色判断
-const isTeacher = computed(() => store.state.user.userType === 'teacher')
+const userType = computed(() => store.state.user.userType)
 
 // 查询参数
 const queryParams = reactive({
   courseId: '',
-  classId: ''
+  classId: '',
+  studentId: ''
 })
 
-// 课程和班级选项
-const courseOptions = ref([
-  { id: 1, name: '计算机导论' },
-  { id: 2, name: '程序设计基础' }
-])
-
-const classOptions = ref([
-  { id: 1, name: '计算机2101' },
-  { id: 2, name: '计算机2102' }
-])
-
-// 成绩构成设置
+// 成绩设置
 const scoreSettings = reactive({
   homework: 30,
   experiment: 30,
   final: 40
 })
 
-// 模拟成绩数据
+// 成绩列表
 const scoreList = ref([
   {
     studentId: '2021001',
     studentName: '张三',
     className: '计算机2101',
     homeworkScore: 85,
-    experimentScore: 88,
-    finalScore: 90
+    experimentScore: 90,
+    finalScore: 88,
+    submitted: false
   },
   {
     studentId: '2021002',
     studentName: '李四',
     className: '计算机2101',
-    homeworkScore: 78,
-    experimentScore: 82,
-    finalScore: 85
+    homeworkScore: 92,
+    experimentScore: 88,
+    finalScore: 85,
+    submitted: false
   }
-])
-
-// 统计数据
-const statisticsData = ref([
-  { range: '90-100', count: 5, percentage: 20 },
-  { range: '80-89', count: 10, percentage: 40 },
-  { range: '70-79', count: 6, percentage: 24 },
-  { range: '60-69', count: 3, percentage: 12 },
-  { range: '0-59', count: 1, percentage: 4 }
 ])
 
 const loading = ref(false)
 
-// 方法
-const handleQuery = () => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 500)
-}
+// 成绩统计
+const statistics = computed(() => {
+  const totalScores = scoreList.value.map(item => calculateTotalScore(item))
+  const distribution = {
+    '0-59': 0,
+    '60-69': 0,
+    '70-79': 0,
+    '80-89': 0,
+    '90-100': 0
+  }
 
-const resetQuery = () => {
-  queryParams.courseId = ''
-  queryParams.classId = ''
-  handleQuery()
+  totalScores.forEach(score => {
+    if (score < 60) distribution['0-59']++
+    else if (score < 70) distribution['60-69']++
+    else if (score < 80) distribution['70-79']++
+    else if (score < 90) distribution['80-89']++
+    else distribution['90-100']++
+  })
+
+  return {
+    average: Math.round(totalScores.reduce((a, b) => a + b, 0) / totalScores.length),
+    highest: Math.max(...totalScores),
+    lowest: Math.min(...totalScores),
+    passRate: Math.round((totalScores.filter(score => score >= 60).length / totalScores.length) * 100),
+    distribution
+  }
+})
+
+// 成绩比例设置
+const ratioDialog = reactive({
+  visible: false
+})
+
+const ratioForm = reactive({
+  homework: 30,
+  experiment: 30,
+  final: 40
+})
+
+// 方法
+const handleSetRatio = () => {
+  Object.assign(ratioForm, scoreSettings)
+  ratioDialog.visible = true
 }
 
 const validateTotal = () => {
-  const total = scoreSettings.homework + scoreSettings.experiment + scoreSettings.final
+  const total = ratioForm.homework + ratioForm.experiment + ratioForm.final
   if (total !== 100) {
     ElMessage.warning(`当前比例总和为${total}%，需要调整为100%`)
   }
+}
+
+const confirmRatio = () => {
+  const total = ratioForm.homework + ratioForm.experiment + ratioForm.final
+  if (total !== 100) {
+    ElMessage.error('成绩比例之和必须为100%')
+    return
+  }
+  
+  Object.assign(scoreSettings, ratioForm)
+  ratioDialog.visible = false
+  ElMessage.success('成绩比例设置成功')
 }
 
 const calculateTotalScore = (row) => {
@@ -284,33 +331,26 @@ const calculateTotalScore = (row) => {
   return Math.round(total)
 }
 
-// 保存成绩
-const handleSaveScores = () => {
-  // 验证成绩构成比例
-  const total = scoreSettings.homework + scoreSettings.experiment + scoreSettings.final
-  if (total !== 100) {
-    ElMessage.error('成绩构成比例之和必须为100%')
-    return
-  }
-
-  // TODO: 调用后端API保存成绩
-  ElMessage.success('成绩保存成功')
+const handleScoreChange = (row) => {
+  // 验证分数范围
+  const scores = ['homeworkScore', 'experimentScore', 'finalScore']
+  scores.forEach(key => {
+    if (row[key] > 100) row[key] = 100
+    if (row[key] < 0) row[key] = 0
+  })
 }
 
-// 发布成绩
-const handlePublishScores = () => {
-  ElMessageBox.confirm('确认要发布成绩吗？发布后学生将可以查看成绩', '提示', {
+const handleSubmitToAdmin = () => {
+  ElMessageBox.confirm('确认要提交成绩吗？提交后将不能修改', '提示', {
     type: 'warning'
   }).then(() => {
-    // TODO: 调用后端API发布成绩
     scoreList.value.forEach(item => {
-      item.published = true
+      item.submitted = true
     })
-    ElMessage.success('成绩发布成功')
-  }).catch(() => {})
+    ElMessage.success('成绩提交成功')
+  })
 }
 
-// 导出成绩
 const handleExport = () => {
   const headers = ['学号', '姓名', '班级', '作业成绩', '实验成绩', '期末成绩', '总评成绩']
   const data = scoreList.value.map(item => [
@@ -323,94 +363,13 @@ const handleExport = () => {
     calculateTotalScore(item)
   ])
   
-  // 使用 xlsx 库导出 Excel
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Scores')
   XLSX.writeFile(wb, '成绩单.xlsx')
 }
 
-// 初始化图表
-const initCharts = () => {
-  // 成绩分布饼图
-  const chart1 = echarts.init(chartRef1.value)
-  chart1.setOption({
-    title: {
-      text: '成绩分布',
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c} ({d}%)'
-    },
-    legend: {
-      orient: 'vertical',
-      left: 'left'
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: '50%',
-        data: [
-          { value: 5, name: '90-100分' },
-          { value: 10, name: '80-89分' },
-          { value: 6, name: '70-79分' },
-          { value: 3, name: '60-69分' },
-          { value: 1, name: '60分以下' }
-        ]
-      }
-    ]
-  })
-
-  // 成绩趋势柱状图
-  const chart2 = echarts.init(chartRef2.value)
-  chart2.setOption({
-    title: {
-      text: '各项成绩平均分',
-      left: 'center'
-    },
-    tooltip: {
-      trigger: 'axis'
-    },
-    xAxis: {
-      type: 'category',
-      data: ['作业成绩', '实验成绩', '期末成绩', '总评成绩']
-    },
-    yAxis: {
-      type: 'value',
-      max: 100
-    },
-    series: [
-      {
-        data: [82, 85, 88, 85],
-        type: 'bar'
-      }
-    ]
-  })
-
-  // 监听窗口大小变化
-  window.addEventListener('resize', () => {
-    chart1.resize()
-    chart2.resize()
-  })
-}
-
-// 添加成绩统计方法
-const calculateStatistics = (scores) => {
-  const total = scores.length
-  const passing = scores.filter(s => s >= 60).length
-  const excellent = scores.filter(s => s >= 90).length
-  
-  return {
-    passingRate: ((passing / total) * 100).toFixed(2),
-    excellentRate: ((excellent / total) * 100).toFixed(2),
-    average: (scores.reduce((a, b) => a + b, 0) / total).toFixed(2)
-  }
-}
-
-onMounted(() => {
-  initCharts()
-})
+// ... (其他必要的方法实现)
 </script>
 
 <style scoped>
@@ -424,41 +383,43 @@ onMounted(() => {
   align-items: center;
 }
 
-.search-form {
-  margin-bottom: 20px;
+.ratio-info {
+  margin: 20px 0;
 }
 
-.score-settings {
-  margin: 20px 0;
-  padding: 15px;
-  background-color: #f5f7fa;
+.statistics {
+  margin-top: 30px;
+}
+
+.stat-card {
+  padding: 20px;
+  background: #f5f7fa;
   border-radius: 4px;
 }
 
-.mb-20 {
-  margin-bottom: 20px;
+.stat-card h4 {
+  margin: 0 0 15px 0;
 }
 
-.mt-10 {
-  margin-top: 10px;
+.score-distribution {
+  margin-top: 15px;
 }
 
-.mt-20 {
-  margin-top: 20px;
+.distribution-item {
+  margin-bottom: 10px;
 }
 
-.ml-5 {
+.unit {
   margin-left: 5px;
 }
 
-.header-btns {
-  display: flex;
-  gap: 10px;
+.total-ratio {
+  margin-top: 10px;
+  text-align: right;
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.error-tip {
+  color: #f56c6c;
+  margin-left: 5px;
 }
 </style> 

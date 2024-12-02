@@ -287,6 +287,9 @@ const studentRules = {
   email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }]
 }
 
+// 添加 ref
+const studentFormRef = ref(null)
+
 // 方法
 const handleQuery = () => {
   loading.value = true
@@ -408,8 +411,13 @@ const downloadTemplate = () => {
   XLSX.writeFile(wb, '学生导入模板.xlsx')
 }
 
-// 导出学生名单
+// 修改导出学生名单方法
 const exportStudentList = () => {
+  if (!currentClass.value) {
+    ElMessage.warning('请先选择班级')
+    return
+  }
+  
   const headers = ['序号', '学号', '姓名', '性别', '联系电话', '邮箱']
   const data = studentDialog.list.map((student, index) => [
     index + 1,
@@ -423,7 +431,7 @@ const exportStudentList = () => {
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Students')
-  XLSX.writeFile(wb, `${currentClass.value.name}-学生名单.xlsx`)
+  XLSX.writeFile(wb, `${currentClass.value?.name || '班级'}-学生名单.xlsx`)
 }
 
 // 添加学生

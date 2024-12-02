@@ -436,6 +436,38 @@ const returnHomework = () => {
   })
 }
 
+// 添加查询方法
+const handleQuery = () => {
+  loading.value = true
+  // TODO: 调用API获取作业列表
+  setTimeout(() => {
+    loading.value = false
+  }, 500)
+}
+
+// 添加查看作业详情方法
+const handleViewDetail = (row) => {
+  // TODO: 实现查看作业详情
+  ElMessage.info('查看作业详情：' + row.title)
+}
+
+// 添加查看提交情况方法
+const handleViewSubmissions = (row) => {
+  // TODO: 实现查看提交情况
+  ElMessage.info('查看提交情况：' + row.title)
+}
+
+// 添加删除作业方法
+const handleDelete = (row) => {
+  ElMessageBox.confirm('确认要删除该作业吗？', '警告', {
+    type: 'warning'
+  }).then(() => {
+    // TODO: 调用API删除作业
+    ElMessage.success('删除成功')
+    handleQuery()
+  }).catch(() => {})
+}
+
 // ... (其他必要的方法实现)
 </script>
 

@@ -593,6 +593,13 @@ const validateSchedule = (schedule) => {
 const validateEnrollment = (currentCount, maxCount) => {
   return currentCount < maxCount
 }
+
+// 添加 ResizeObserver 错误处理
+window.addEventListener('error', (e) => {
+  if (e.message === 'ResizeObserver loop completed with undelivered notifications.') {
+    e.stopPropagation()
+  }
+}, true)
 </script>
 
 <style scoped>
