@@ -330,10 +330,10 @@ const handleQuery = () => {
       student.name.toLowerCase().includes(queryParams.name.toLowerCase())
     
     const matchClass = !queryParams.class || 
-      student.class === queryParams.class
+      student.className === classOptions.value.find(item => item.id === queryParams.class)?.name
     
     const matchDepartment = !queryParams.department || 
-      student.department === queryParams.department
+      student.department === departmentOptions.value.find(item => item.id === queryParams.department)?.name
     
     return matchId && matchName && matchClass && matchDepartment
   })
@@ -343,7 +343,10 @@ const handleQuery = () => {
   // 模拟分页
   const start = (queryParams.pageNum - 1) * queryParams.pageSize
   const end = start + queryParams.pageSize
-  studentList.value = filteredList.slice(start, end)
+  
+  // 只显示过滤后的分页数据
+  const displayList = filteredList.slice(start, end)
+  studentList.value = displayList
   
   loading.value = false
 }
@@ -364,7 +367,8 @@ const resetQuery = () => {
   queryParams.name = ''
   queryParams.class = ''
   queryParams.department = ''
-  queryParams.pageNum = 1  // 重置时回到第一页
+  queryParams.pageNum = 1
+  reloadData() // 重置时重新加载所有数据
   handleQuery()
 }
 
@@ -496,6 +500,35 @@ const downloadTemplate = () => {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Template')
   XLSX.writeFile(wb, '学生导入模板.xlsx')
+}
+
+// 添加一个方法来重新加载所有数据
+const reloadData = () => {
+  // 这里应该是从后端获取数据
+  studentList.value = [
+    {
+      id: '2021001',
+      name: '张三',
+      gender: '男',
+      className: '计算机2101',
+      department: '计算机学院',
+      phone: '13800138000',
+      email: 'zhangsan@example.com',
+      status: 1,
+      remark: ''
+    },
+    {
+      id: '2021002',
+      name: '李四',
+      gender: '女',
+      className: '计算机2101',
+      department: '计算机学院',
+      phone: '13800138001',
+      email: 'lisi@example.com',
+      status: 1,
+      remark: ''
+    }
+  ]
 }
 </script>
 

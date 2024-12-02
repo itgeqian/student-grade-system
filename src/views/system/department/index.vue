@@ -53,6 +53,8 @@
           :total="total"
           :page-sizes="[10, 20, 30, 50]"
           layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
@@ -204,7 +206,7 @@ const rules = {
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '���输入正确的邮箱地址', trigger: 'blur' }
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
   ]
 }
 
@@ -234,6 +236,7 @@ const handleQuery = () => {
 
 const resetQuery = () => {
   queryParams.name = ''
+  queryParams.pageNum = 1  // 重置时回到第一页
   handleQuery()
 }
 
@@ -302,6 +305,18 @@ const submitForm = async () => {
   } catch (error) {
     console.error('表单验证失败:', error)
   }
+}
+
+// 添加分页方法
+const handleSizeChange = (val) => {
+  queryParams.pageSize = val
+  queryParams.pageNum = 1
+  handleQuery()
+}
+
+const handleCurrentChange = (val) => {
+  queryParams.pageNum = val
+  handleQuery()
 }
 </script>
 

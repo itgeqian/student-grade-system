@@ -291,7 +291,10 @@ const handleQuery = () => {
   // 模拟分页
   const start = (queryParams.pageNum - 1) * queryParams.pageSize
   const end = start + queryParams.pageSize
-  teacherList.value = filteredList.slice(start, end)
+  
+  // 只显示过滤后的分页数据
+  const displayList = filteredList.slice(start, end)
+  teacherList.value = displayList
   
   loading.value = false
 }
@@ -312,6 +315,7 @@ const resetQuery = () => {
   queryParams.name = ''
   queryParams.department = ''
   queryParams.pageNum = 1
+  reloadData() // 重置时重新加载所有数据
   handleQuery()
 }
 
@@ -432,6 +436,33 @@ const downloadTemplate = () => {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Template')
   XLSX.writeFile(wb, '教师导入模板.xlsx')
+}
+
+// 添加一个方法来重新加载所有数据
+const reloadData = () => {
+  // 这里应该是从后端获取数据
+  teacherList.value = [
+    {
+      id: 'T001',
+      name: '张老师',
+      department: 1,
+      title: '教授',
+      phone: '13800138000',
+      email: 'zhang@example.com',
+      status: 1,
+      remark: ''
+    },
+    {
+      id: 'T002',
+      name: '李老师',
+      department: 1,
+      title: '副教授',
+      phone: '13800138001',
+      email: 'li@example.com',
+      status: 1,
+      remark: ''
+    }
+  ]
 }
 </script>
 
