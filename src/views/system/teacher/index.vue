@@ -50,7 +50,11 @@
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="工号" width="120" />
         <el-table-column prop="name" label="姓名" width="120" />
-        <el-table-column prop="department" label="所属部门" width="150" />
+        <el-table-column prop="department" label="所属部门" width="150">
+          <template #default="{ row }">
+            {{ formatDepartment(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="title" label="职称" width="120" />
         <el-table-column prop="phone" label="联系电话" width="150" />
         <el-table-column prop="email" label="邮箱" min-width="200" />
@@ -166,13 +170,90 @@
         <el-table-column prop="studentCount" label="学生人数" width="100" />
       </el-table>
     </el-dialog>
+
+    <!-- 在表格上方添加统计卡片 -->
+    <el-row :gutter="20" class="statistics-cards">
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>教师总数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.total }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>在职教师</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.active }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>教授人数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.professor }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>副教授人数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.associateProfessor }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 添加部门分布图表 -->
+    <el-row :gutter="20" class="statistics-charts">
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>部门分布</span>
+            </div>
+          </template>
+          <div class="chart-container" ref="departmentChartRef"></div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>职称分布</span>
+            </div>
+          </template>
+          <div class="chart-container" ref="titleChartRef"></div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
+import * as echarts from 'echarts'
 
 // 查询参数
 const queryParams = reactive({
@@ -297,6 +378,123 @@ const originalTeacherList = ref([
   }
 ])
 
+// 添加统计数据
+const statistics = reactive({
+  total: 0,
+  active: 0,
+  professor: 0,
+  associateProfessor: 0
+})
+
+// 添加图表引用
+const departmentChartRef = ref(null)
+const titleChartRef = ref(null)
+let departmentChart = null
+let titleChart = null
+
+// 计算统计数据
+const calculateStatistics = () => {
+  statistics.total = originalTeacherList.value.length
+  statistics.active = originalTeacherList.value.filter(t => t.status === 1).length
+  statistics.professor = originalTeacherList.value.filter(t => t.title === '教授').length
+  statistics.associateProfessor = originalTeacherList.value.filter(t => t.title === '副教授').length
+}
+
+// 初始化部门分布图表
+const initDepartmentChart = () => {
+  if (!departmentChartRef.value) return
+  
+  departmentChart = echarts.init(departmentChartRef.value)
+  const departmentData = departmentOptions.value.map(dept => ({
+    name: dept.name,
+    value: originalTeacherList.value.filter(t => t.department === dept.id).length
+  }))
+
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left'
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: '50%',
+        data: departmentData,
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }
+    ]
+  }
+
+  departmentChart.setOption(option)
+}
+
+// 初始化职称分布图表
+const initTitleChart = () => {
+  if (!titleChartRef.value) return
+  
+  titleChart = echarts.init(titleChartRef.value)
+  const titles = ['教授', '副教授', '讲师', '助教']
+  const titleData = titles.map(title => ({
+    name: title,
+    value: originalTeacherList.value.filter(t => t.title === title).length
+  }))
+
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left'
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: '50%',
+        data: titleData,
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }
+    ]
+  }
+
+  titleChart.setOption(option)
+}
+
+// 更新所有统计和图表
+const updateStatistics = () => {
+  calculateStatistics()
+  initDepartmentChart()
+  initTitleChart()
+}
+
+// 监听窗口大小变化
+window.addEventListener('resize', () => {
+  departmentChart?.resize()
+  titleChart?.resize()
+})
+
+// 组件挂载时初始化图表
+onMounted(() => {
+  updateStatistics()
+})
+
 // 方法
 const handleQuery = () => {
   loading.value = true
@@ -325,6 +523,7 @@ const handleQuery = () => {
   teacherList.value = filteredList.slice(start, end)
   
   loading.value = false
+  updateStatistics()
 }
 
 const handleSizeChange = (val) => {
@@ -612,5 +811,33 @@ const formatDepartment = (row) => {
 
 :deep(.el-tag) {
   margin: 0 2px;
+}
+
+/* 添加统计相关样式 */
+.statistics-cards {
+  margin-bottom: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-content {
+  text-align: center;
+}
+
+.card-content h2 {
+  margin: 0;
+  color: #409EFF;
+}
+
+.statistics-charts {
+  margin-bottom: 20px;
+}
+
+.chart-container {
+  height: 300px;
 }
 </style> 
