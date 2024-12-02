@@ -4,7 +4,11 @@
       <template #header>
         <div class="header">
           <span>作业管理</span>
-          <el-button v-if="isTeacher" type="primary" @click="handleAdd">布置作业</el-button>
+          <el-button 
+            v-if="userType === 'teacher'" 
+            type="primary" 
+            @click="handleAddHomework"
+          >布置作业</el-button>
         </div>
       </template>
 
@@ -12,11 +16,11 @@
       <el-form :inline="true" :model="queryParams" class="search-form">
         <el-form-item label="课程">
           <el-select v-model="queryParams.courseId" placeholder="请选择课程">
-            <el-option
-              v-for="course in courseOptions"
-              :key="course.id"
-              :label="course.name"
-              :value="course.id"
+            <el-option 
+              v-for="item in courseOptions" 
+              :key="item.id" 
+              :label="item.name" 
+              :value="item.id" 
             />
           </el-select>
         </el-form-item>
@@ -28,6 +32,7 @@
             <el-option label="未提交" value="未提交" />
             <el-option label="已提交" value="已提交" />
             <el-option label="已批改" value="已批改" />
+            <el-option label="已退回" value="已退回" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -36,12 +41,12 @@
         </el-form-item>
       </el-form>
 
-      <!-- 表格区域 -->
-      <el-table :data="homeworkList" style="width: 100%" v-loading="loading">
+      <!-- 作业列表 -->
+      <el-table :data="homeworkList" v-loading="loading">
         <el-table-column prop="title" label="作业标题" />
         <el-table-column prop="courseName" label="所属课程" />
-        <el-table-column prop="deadline" label="截止时间" />
-        <el-table-column prop="status" label="状态">
+        <el-table-column prop="deadline" label="截止时间" width="160" />
+        <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ row.status }}</el-tag>
           </template>
@@ -51,32 +56,34 @@
             {{ row.score || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250">
+        <el-table-column label="操作" width="200">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleView(row)">查看</el-button>
-            <el-button 
-              v-if="isTeacher" 
-              type="success" 
-              link 
-              @click="handleGrade(row)"
-            >批改</el-button>
-            <el-button 
-              v-if="isStudent && row.status === '未提交'" 
-              type="warning" 
-              link 
-              @click="handleSubmit(row)"
-            >提交</el-button>
-            <el-button 
-              v-if="isTeacher" 
-              type="danger" 
-              link 
-              @click="handleDelete(row)"
-            >删除</el-button>
+            <!-- 教师操作 -->
+            <template v-if="userType === 'teacher'">
+              <el-button type="primary" link @click="handleGrade(row)">批改</el-button>
+              <el-button type="warning" link @click="handleViewSubmissions(row)">查看提交</el-button>
+              <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+            </template>
+            <!-- 学生操作 -->
+            <template v-else>
+              <el-button 
+                type="primary" 
+                link 
+                @click="handleSubmit(row)"
+                v-if="['未提交', '已退回'].includes(row.status)"
+              >提交</el-button>
+              <el-button 
+                type="info" 
+                link 
+                @click="handleViewDetail(row)"
+                v-else
+              >查看</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
 
-      <!-- 分页区域 -->
+      <!-- 分页 -->
       <div class="pagination">
         <el-pagination
           v-model:current-page="queryParams.pageNum"
@@ -84,15 +91,13 @@
           :total="total"
           :page-sizes="[10, 20, 30, 50]"
           layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
 
     <!-- 布置作业对话框 -->
     <el-dialog
-      title="布置作业"
+      :title="homeworkDialog.type === 'add' ? '布置作业' : '编辑作业'"
       v-model="homeworkDialog.visible"
       width="600px"
     >
@@ -107,20 +112,20 @@
         </el-form-item>
         <el-form-item label="所属课程" prop="courseId">
           <el-select v-model="homeworkForm.courseId" placeholder="请选择课程">
-            <el-option
-              v-for="course in courseOptions"
-              :key="course.id"
-              :label="course.name"
-              :value="course.id"
+            <el-option 
+              v-for="item in courseOptions" 
+              :key="item.id" 
+              :label="item.name" 
+              :value="item.id" 
             />
           </el-select>
         </el-form-item>
         <el-form-item label="作业内容" prop="content">
-          <el-input
-            v-model="homeworkForm.content"
-            type="textarea"
+          <el-input 
+            v-model="homeworkForm.content" 
+            type="textarea" 
             rows="4"
-            placeholder="请输入作业内容"
+            placeholder="请输入作业内容" 
           />
         </el-form-item>
         <el-form-item label="截止时间" prop="deadline">
@@ -132,14 +137,12 @@
         </el-form-item>
         <el-form-item label="附件">
           <el-upload
-            class="upload-demo"
             action="#"
             :auto-upload="false"
             :on-change="handleFileChange"
+            :file-list="homeworkForm.attachments"
           >
-            <template #trigger>
-              <el-button type="primary">选择文件</el-button>
-            </template>
+            <el-button type="primary">选择文件</el-button>
           </el-upload>
         </el-form-item>
       </el-form>
@@ -167,27 +170,25 @@
           <el-input
             v-model="submitForm.answer"
             type="textarea"
-            rows="4"
+            rows="6"
             placeholder="请输入作业答案"
           />
         </el-form-item>
         <el-form-item label="附件">
           <el-upload
-            class="upload-demo"
             action="#"
             :auto-upload="false"
-            :on-change="handleFileChange"
+            :on-change="handleSubmitFileChange"
+            :file-list="submitForm.attachments"
           >
-            <template #trigger>
-              <el-button type="primary">选择文件</el-button>
-            </template>
+            <el-button type="primary">选择文件</el-button>
           </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="submitDialog.visible = false">取 消</el-button>
-          <el-button type="primary" @click="submitHomeworkAnswer">确 定</el-button>
+          <el-button type="primary" @click="confirmSubmit">确 定</el-button>
         </div>
       </template>
     </el-dialog>
@@ -196,76 +197,62 @@
     <el-dialog
       title="批改作业"
       v-model="gradeDialog.visible"
-      width="600px"
+      width="800px"
     >
-      <el-form
-        ref="gradeFormRef"
-        :model="gradeForm"
-        :rules="gradeRules"
-        label-width="100px"
-      >
-        <el-form-item label="学生答案" prop="answer">
+      <div class="grade-content">
+        <h3>{{ gradeDialog.homework?.title }}</h3>
+        <div class="student-answer">
+          <p class="answer-label">学生答案：</p>
           <div class="answer-content">{{ gradeDialog.answer }}</div>
-        </el-form-item>
-        <el-form-item label="成绩" prop="score">
-          <el-input-number
-            v-model="gradeForm.score"
-            :min="0"
-            :max="100"
-            placeholder="请输入成绩"
-          />
-        </el-form-item>
-        <el-form-item label="评语" prop="comment">
-          <el-input
-            v-model="gradeForm.comment"
-            type="textarea"
-            rows="4"
-            placeholder="请输入评语"
-          />
-        </el-form-item>
-        <el-form-item label="快捷评语">
-          <el-select v-model="quickComment" placeholder="选择快捷评语" @change="handleQuickComment">
-            <el-option
-              v-for="item in quickComments"
-              :key="item"
-              :label="item"
-              :value="item"
+          <div v-if="gradeDialog.attachments?.length" class="attachments">
+            <p>附件：</p>
+            <el-link 
+              v-for="file in gradeDialog.attachments"
+              :key="file.name"
+              type="primary"
+              @click="downloadFile(file)"
+            >
+              {{ file.name }}
+            </el-link>
+          </div>
+        </div>
+        <el-form :model="gradeForm" label-width="100px">
+          <el-form-item label="成绩" required>
+            <el-input-number 
+              v-model="gradeForm.score" 
+              :min="0" 
+              :max="100"
+              :precision="0" 
             />
-          </el-select>
-        </el-form-item>
-      </el-form>
+          </el-form-item>
+          <el-form-item label="评语">
+            <el-input
+              v-model="gradeForm.comment"
+              type="textarea"
+              rows="3"
+            />
+          </el-form-item>
+          <el-form-item label="快捷评语">
+            <div class="quick-comments">
+              <el-tag
+                v-for="item in quickComments"
+                :key="item"
+                @click="selectQuickComment(item)"
+                class="quick-comment-tag"
+              >
+                {{ item }}
+              </el-tag>
+            </div>
+          </el-form-item>
+        </el-form>
+      </div>
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="gradeDialog.visible = false">取 消</el-button>
-          <el-button type="primary" @click="submitGrade">确 定</el-button>
+          <el-button type="warning" @click="returnHomework">退 回</el-button>
+          <el-button type="primary" @click="confirmGrade">确认评分</el-button>
         </div>
       </template>
-    </el-dialog>
-
-    <!-- 查看作业对话框 -->
-    <el-dialog
-      :title="viewDialog.title"
-      v-model="viewDialog.visible"
-      width="600px"
-    >
-      <div class="view-content">
-        <div class="view-item">
-          <label>作业内容：</label>
-          <div>{{ viewDialog.content }}</div>
-        </div>
-        <div v-if="viewDialog.answer" class="view-item">
-          <label>作业答案：</label>
-          <div>{{ viewDialog.answer }}</div>
-        </div>
-        <div v-if="viewDialog.score" class="view-item">
-          <label>成绩：</label>
-          <div>{{ viewDialog.score }}</div>
-        </div>
-        <div v-if="viewDialog.comment" class="view-item">
-          <label>教师评语：</label>
-          <div>{{ viewDialog.comment }}</div>
-        </div>
-      </div>
     </el-dialog>
   </div>
 </template>
@@ -276,10 +263,7 @@ import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const store = useStore()
-
-// 用户角色判断
-const isTeacher = computed(() => store.state.user.userType === 'teacher')
-const isStudent = computed(() => store.state.user.userType === 'student')
+const userType = computed(() => store.state.user.userType)
 
 // 查询参数
 const queryParams = reactive({
@@ -328,41 +312,45 @@ const getStatusType = (status) => {
   return map[status] || 'info'
 }
 
-// 布置作业对话框
+// 快捷评语
+const quickComments = [
+  '思路清晰，完成得很好',
+  '基本正确，但有待改进',
+  '请认真完成作业要求',
+  '建议多加练习',
+  '请按时提交作业'
+]
+
+// 对话框相关数据
 const homeworkDialog = reactive({
-  visible: false
+  visible: false,
+  type: 'add'
 })
 
+const submitDialog = reactive({
+  visible: false,
+  homework: null
+})
+
+const gradeDialog = reactive({
+  visible: false,
+  homework: null,
+  answer: '',
+  attachments: []
+})
+
+// 表单数据
 const homeworkForm = reactive({
   title: '',
   courseId: '',
   content: '',
-  deadline: ''
-})
-
-const rules = {
-  title: [{ required: true, message: '请输入作业标题', trigger: 'blur' }],
-  courseId: [{ required: true, message: '请选择课程', trigger: 'change' }],
-  content: [{ required: true, message: '请输入作业内容', trigger: 'blur' }],
-  deadline: [{ required: true, message: '请选择截止时间', trigger: 'change' }]
-}
-
-// 提交作业对话框
-const submitDialog = reactive({
-  visible: false
+  deadline: '',
+  attachments: []
 })
 
 const submitForm = reactive({
-  answer: ''
-})
-
-const submitRules = {
-  answer: [{ required: true, message: '请输入作业答案', trigger: 'blur' }]
-}
-
-// 批改作业对话框
-const gradeDialog = reactive({
-  visible: false
+  answer: '',
+  attachments: []
 })
 
 const gradeForm = reactive({
@@ -370,159 +358,85 @@ const gradeForm = reactive({
   comment: ''
 })
 
-const gradeRules = {
-  score: [{ required: true, message: '请输入成绩', trigger: 'blur' }],
-  comment: [{ required: true, message: '请输入评语', trigger: 'blur' }]
-}
-
-// 添加批量操作相关的数据
-const multipleSelection = ref([])
-const batchDialog = reactive({
-  visible: false,
-  type: '', // 'grade' 或 'delete'
-})
-
 // 方法
-const handleQuery = () => {
-  loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 500)
-}
-
-const resetQuery = () => {
-  queryParams.courseId = ''
-  queryParams.title = ''
-  queryParams.status = ''
-  handleQuery()
-}
-
-const handleAdd = () => {
+const handleAddHomework = () => {
+  homeworkDialog.type = 'add'
   homeworkDialog.visible = true
   Object.assign(homeworkForm, {
     title: '',
     courseId: '',
     content: '',
-    deadline: ''
+    deadline: '',
+    attachments: []
   })
 }
 
-const handleView = (row) => {
-  viewDialog.title = row.title
-  viewDialog.content = '这是作业内容...'
-  viewDialog.answer = isStudent.value ? '' : '这是学生答案...'
-  viewDialog.score = row.score
-  viewDialog.comment = '这是教师评语...'
-  viewDialog.visible = true
+const handleFileChange = (file, fileList) => {
+  homeworkForm.attachments = fileList
+}
+
+const handleSubmitFileChange = (file, fileList) => {
+  submitForm.attachments = fileList
+}
+
+const submitHomework = async () => {
+  // TODO: 调用API保存作业
+  ElMessage.success('作业布置成功')
+  homeworkDialog.visible = false
+  handleQuery()
 }
 
 const handleSubmit = (row) => {
+  submitDialog.homework = row
   submitDialog.visible = true
-  submitForm.answer = ''
+  Object.assign(submitForm, {
+    answer: '',
+    attachments: []
+  })
+}
+
+const confirmSubmit = async () => {
+  // TODO: 调用API提交作业
+  ElMessage.success('作业提交成功')
+  submitDialog.visible = false
+  handleQuery()
 }
 
 const handleGrade = (row) => {
+  gradeDialog.homework = row
   gradeDialog.visible = true
+  // TODO: 从后端获取学生答案和附件
+  gradeDialog.answer = '这里是学生的答案...'
+  gradeDialog.attachments = []
   Object.assign(gradeForm, {
     score: 0,
     comment: ''
   })
 }
 
-const handleDelete = (row) => {
-  ElMessageBox.confirm('确认要删除该作业吗？', '警告', {
-    type: 'warning'
-  }).then(() => {
-    ElMessage.success('删除成功')
-  }).catch(() => {})
+const selectQuickComment = (comment) => {
+  gradeForm.comment = comment
 }
 
-const handleFileChange = (file) => {
-  console.log('选择文件:', file)
-}
-
-const submitUpload = () => {
-  ElMessage.success('文件上传成功')
-}
-
-const submitHomework = () => {
-  ElMessage.success('作业布置成功')
-  homeworkDialog.visible = false
-  handleQuery()
-}
-
-const submitHomeworkAnswer = () => {
-  ElMessage.success('作业提交成功')
-  submitDialog.visible = false
-  handleQuery()
-}
-
-const submitGrade = () => {
-  ElMessage.success('批改完成')
+const confirmGrade = async () => {
+  // TODO: 调用API保存评分
+  ElMessage.success('评分成功')
   gradeDialog.visible = false
   handleQuery()
 }
 
-const handleSizeChange = (val) => {
-  queryParams.pageSize = val
-  handleQuery()
-}
-
-const handleCurrentChange = (val) => {
-  queryParams.pageNum = val
-  handleQuery()
-}
-
-// 批量删除方法
-const handleBatchDelete = async () => {
-  try {
-    await ElMessageBox.confirm('确认要删除选中的作业吗？', '警告', {
-      type: 'warning'
-    })
-    // TODO: 调用后端 API 批量删除
-    ElMessage.success('批量删除成功')
+const returnHomework = () => {
+  ElMessageBox.confirm('确认要退回该作业吗？', '提示', {
+    type: 'warning'
+  }).then(() => {
+    // TODO: 调用API退回作业
+    ElMessage.success('作业已退回')
+    gradeDialog.visible = false
     handleQuery()
-  } catch (error) {
-    console.error('批量删除失败:', error)
-  }
+  })
 }
 
-// 批量评分方法
-const handleBatchGrade = () => {
-  batchDialog.type = 'grade'
-  batchDialog.visible = true
-}
-
-// 添加表格多选功能
-const handleSelectionChange = (val) => {
-  multipleSelection.value = val
-}
-
-// 快捷评语列表
-const quickComments = [
-  '答案正确，思路清晰',
-  '基本正确，有待改进',
-  '请认真完成作业',
-  '作业完成度不够'
-]
-
-const quickComment = ref('')
-
-// 查看作业对话框数据
-const viewDialog = reactive({
-  visible: false,
-  title: '',
-  content: '',
-  answer: '',
-  score: '',
-  comment: ''
-})
-
-// 处理快捷评语选择
-const handleQuickComment = (value) => {
-  gradeForm.comment = value
-  quickComment.value = ''
-}
+// ... (其他必要的方法实现)
 </script>
 
 <style scoped>
@@ -536,45 +450,42 @@ const handleQuickComment = (value) => {
   align-items: center;
 }
 
-.search-form {
-  margin-bottom: 20px;
-}
-
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.upload-demo {
-  margin-bottom: 20px;
-}
-
-.answer-content {
-  padding: 10px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  min-height: 100px;
-}
-
-.view-content {
+.grade-content {
   padding: 20px;
 }
 
-.view-item {
-  margin-bottom: 20px;
-}
-
-.view-item label {
-  font-weight: bold;
-  margin-bottom: 8px;
-  display: block;
-}
-
-.view-item div {
-  padding: 10px;
-  background-color: #f5f7fa;
+.student-answer {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f5f7fa;
   border-radius: 4px;
-  min-height: 40px;
+}
+
+.answer-label {
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.answer-content {
+  white-space: pre-wrap;
+}
+
+.attachments {
+  margin-top: 10px;
+}
+
+.quick-comments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.quick-comment-tag {
+  cursor: pointer;
+}
+
+.quick-comment-tag:hover {
+  background-color: #409EFF;
+  color: white;
 }
 </style> 

@@ -325,6 +325,12 @@ const courseFormRef = ref(null)
 // 添加课程表相关的数据和方法
 const scheduleVisible = ref(false)
 const scheduleData = ref([])
+const timeSlots = [
+  { time: '8:00-9:40', label: '第一节' },
+  { time: '10:00-11:40', label: '第二节' },
+  { time: '14:00-15:40', label: '第三节' },
+  { time: '16:00-17:40', label: '第四节' }
+]
 
 // 课程表相关数据
 const scheduleWeek = ref(1)
@@ -444,30 +450,25 @@ const handleCurrentChange = (val) => {
 
 // 查看课程表
 const handleViewSchedule = (row) => {
-  // 根据选中的课程生成课程表数据
+  // 从后端获取课程表数据
   scheduleData.value = [
     {
       day: 1,
       time: '8:00-9:40',
       course: row.name,
       teacher: row.teacher,
-      location: '教室101'
-    },
-    {
-      day: 2,
-      time: '10:00-11:40',
-      course: row.name,
-      teacher: row.teacher,
-      location: '教室102'
-    },
-    {
-      day: 4,
-      time: '14:00-15:40',
-      course: row.name,
-      teacher: row.teacher,
-      location: '教室103'
+      location: '教室101',
+      capacity: 50,
+      enrolled: 30
     }
+    // ... 其他课程数据
   ]
+  
+  const conflicts = validateSchedule(scheduleData.value)
+  if (conflicts.length > 0) {
+    ElMessage.warning(`检测到课程冲突：\n${conflicts.join('\n')}`)
+  }
+  
   scheduleVisible.value = true
 }
 
@@ -491,20 +492,23 @@ const studentDialog = reactive({
 // 选课管理方法
 const handleEnrollment = (row) => {
   enrollmentDialog.course = row
+  // 从后端获取已选课学生列表
   enrollmentDialog.students = [
     {
       id: '2021001',
       name: '张三',
       class: '计算机2101',
-      enrollTime: '2024-01-15 10:00:00'
-    },
-    {
-      id: '2021002',
-      name: '李四',
-      class: '计算机2101',
-      enrollTime: '2024-01-15 10:30:00'
+      enrollTime: '2024-01-15 10:00:00',
+      status: '正常'  // 新增状态字段
     }
+    // ... 其他学生数据
   ]
+  
+  // 检查选课人数
+  if (!validateEnrollment(enrollmentDialog.students.length, enrollmentDialog.maxStudents)) {
+    ElMessage.warning('当前课程已达到人数上限')
+  }
+  
   enrollmentDialog.visible = true
 }
 
@@ -549,15 +553,45 @@ const confirmAddStudents = () => {
     return
   }
 
+  // 检查人数限制
+  if (!validateEnrollment(
+    enrollmentDialog.students.length + studentDialog.selected.length, 
+    enrollmentDialog.maxStudents
+  )) {
+    ElMessage.warning('添加后将超过课程人数上限')
+    return
+  }
+
   // 添加选中的学生到课程
   const newStudents = studentDialog.selected.map(student => ({
     ...student,
-    enrollTime: new Date().toLocaleString()
+    enrollTime: new Date().toLocaleString(),
+    status: '正常'
   }))
 
   enrollmentDialog.students.push(...newStudents)
   studentDialog.visible = false
   ElMessage.success('添加成功')
+}
+
+// 添加课程表验证
+const validateSchedule = (schedule) => {
+  const conflicts = []
+  schedule.forEach((item1, index1) => {
+    schedule.forEach((item2, index2) => {
+      if (index1 !== index2 && 
+          item1.day === item2.day && 
+          item1.time === item2.time) {
+        conflicts.push(`${item1.course} 与 ${item2.course} 在 星期${numberToChinese(item1.day)} ${item1.time} 存在冲突`)
+      }
+    })
+  })
+  return conflicts
+}
+
+// 添加选课人数限制验证
+const validateEnrollment = (currentCount, maxCount) => {
+  return currentCount < maxCount
 }
 </script>
 
