@@ -96,6 +96,19 @@ export const routes = [
         meta: { title: '成绩管理' }
       }
     ]
+  },
+  {
+    path: '/profile',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        name: 'Profile',
+        component: () => import('@/views/profile/index.vue'),
+        meta: { title: '个人中心', icon: 'user' }
+      }
+    ]
   }
 ]
 
