@@ -93,6 +93,8 @@
           :total="total"
           :page-sizes="[10, 20, 30, 50]"
           layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
         />
       </div>
     </el-card>
@@ -318,9 +320,43 @@ const currentStudent = ref(null)
 // 方法
 const handleQuery = () => {
   loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 500)
+  
+  // 根据搜索条件过滤学生列表
+  const filteredList = studentList.value.filter(student => {
+    const matchId = !queryParams.id || 
+      student.id.toLowerCase().includes(queryParams.id.toLowerCase())
+    
+    const matchName = !queryParams.name || 
+      student.name.toLowerCase().includes(queryParams.name.toLowerCase())
+    
+    const matchClass = !queryParams.class || 
+      student.class === queryParams.class
+    
+    const matchDepartment = !queryParams.department || 
+      student.department === queryParams.department
+    
+    return matchId && matchName && matchClass && matchDepartment
+  })
+  
+  total.value = filteredList.length
+  
+  // 模拟分页
+  const start = (queryParams.pageNum - 1) * queryParams.pageSize
+  const end = start + queryParams.pageSize
+  studentList.value = filteredList.slice(start, end)
+  
+  loading.value = false
+}
+
+const handleSizeChange = (val) => {
+  queryParams.pageSize = val
+  queryParams.pageNum = 1  // 切换每页显示数量时重置到第一页
+  handleQuery()
+}
+
+const handleCurrentChange = (val) => {
+  queryParams.pageNum = val
+  handleQuery()
 }
 
 const resetQuery = () => {
@@ -328,6 +364,7 @@ const resetQuery = () => {
   queryParams.name = ''
   queryParams.class = ''
   queryParams.department = ''
+  queryParams.pageNum = 1  // 重置时回到第一页
   handleQuery()
 }
 

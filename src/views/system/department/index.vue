@@ -204,7 +204,7 @@ const rules = {
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+    { type: 'email', message: '���输入正确的邮箱地址', trigger: 'blur' }
   ]
 }
 
@@ -213,9 +213,23 @@ const departmentFormRef = ref(null)
 // 方法
 const handleQuery = () => {
   loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 500)
+  
+  // 根据部门名称过滤
+  const filteredList = departmentList.value.filter(dept => {
+    const matchName = !queryParams.name || 
+      dept.name.toLowerCase().includes(queryParams.name.toLowerCase())
+    
+    return matchName
+  })
+  
+  total.value = filteredList.length
+  
+  // 模拟分页
+  const start = (queryParams.pageNum - 1) * queryParams.pageSize
+  const end = start + queryParams.pageSize
+  departmentList.value = filteredList.slice(start, end)
+  
+  loading.value = false
 }
 
 const resetQuery = () => {

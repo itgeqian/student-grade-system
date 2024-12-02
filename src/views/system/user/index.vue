@@ -257,9 +257,25 @@ const userFormRef = ref(null)
 // 方法
 const handleQuery = () => {
   loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 500)
+  
+  // 根据搜索条件过滤用户列表
+  const filteredList = userList.value.filter(user => {
+    const matchUsername = !queryParams.username || 
+      user.username.toLowerCase().includes(queryParams.username.toLowerCase())
+    const matchUserType = !queryParams.userType || 
+      user.userType === queryParams.userType
+    
+    return matchUsername && matchUserType
+  })
+  
+  total.value = filteredList.length
+  
+  // 模拟分页
+  const start = (queryParams.pageNum - 1) * queryParams.pageSize
+  const end = start + queryParams.pageSize
+  userList.value = filteredList.slice(start, end)
+  
+  loading.value = false
 }
 
 const resetQuery = () => {

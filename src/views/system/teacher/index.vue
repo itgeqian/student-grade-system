@@ -271,15 +271,47 @@ const currentTeacher = ref(null)
 // 方法
 const handleQuery = () => {
   loading.value = true
-  setTimeout(() => {
-    loading.value = false
-  }, 500)
+  
+  // 根据搜索条件过滤教师列表
+  const filteredList = teacherList.value.filter(teacher => {
+    const matchId = !queryParams.id || 
+      teacher.id.toLowerCase().includes(queryParams.id.toLowerCase())
+    
+    const matchName = !queryParams.name || 
+      teacher.name.toLowerCase().includes(queryParams.name.toLowerCase())
+    
+    const matchDepartment = !queryParams.department || 
+      teacher.department === queryParams.department
+    
+    return matchId && matchName && matchDepartment
+  })
+  
+  total.value = filteredList.length
+  
+  // 模拟分页
+  const start = (queryParams.pageNum - 1) * queryParams.pageSize
+  const end = start + queryParams.pageSize
+  teacherList.value = filteredList.slice(start, end)
+  
+  loading.value = false
+}
+
+const handleSizeChange = (val) => {
+  queryParams.pageSize = val
+  queryParams.pageNum = 1
+  handleQuery()
+}
+
+const handleCurrentChange = (val) => {
+  queryParams.pageNum = val
+  handleQuery()
 }
 
 const resetQuery = () => {
   queryParams.id = ''
   queryParams.name = ''
   queryParams.department = ''
+  queryParams.pageNum = 1
   handleQuery()
 }
 
