@@ -1,5 +1,105 @@
 <template>
   <div class="student-container">
+    <!-- 统计卡片 -->
+    <el-row :gutter="20" class="statistics-cards">
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>学生总数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.total }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>在读学生</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.active }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>男生人数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.male }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>女生人数</span>
+            </div>
+          </template>
+          <div class="card-content">
+            <h2>{{ statistics.female }}</h2>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 分析图表 -->
+    <el-row :gutter="20" class="statistics-charts">
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>院系分布</span>
+            </div>
+          </template>
+          <div class="chart-container" ref="departmentChartRef"></div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>班级分布</span>
+            </div>
+          </template>
+          <div class="chart-container" ref="classChartRef"></div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>性别比例</span>
+            </div>
+          </template>
+          <div class="chart-container" ref="genderChartRef"></div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>学生成绩分布</span>
+              <el-select v-model="gradeStats.semester" placeholder="选择学期" size="small">
+                <el-option label="2023-2024-1" value="2023-2024-1" />
+                <el-option label="2023-2024-2" value="2023-2024-2" />
+              </el-select>
+            </div>
+          </template>
+          <div class="chart-container" ref="gradeChartRef"></div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-card>
       <template #header>
         <div class="header">
@@ -203,9 +303,10 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
+import * as echarts from 'echarts'
 
 // 查询参数
 const queryParams = reactive({
@@ -317,6 +418,232 @@ const courseDialog = reactive({
 
 const currentStudent = ref(null)
 
+// 添加统计数据
+const statistics = reactive({
+  total: 0,
+  active: 0,
+  male: 0,
+  female: 0
+})
+
+// 添加成绩统计相关数据
+const gradeStats = reactive({
+  semester: '2023-2024-1'
+})
+
+// 添加图表引用
+const departmentChartRef = ref(null)
+const classChartRef = ref(null)
+const genderChartRef = ref(null)
+const gradeChartRef = ref(null)
+
+let departmentChart = null
+let classChart = null
+let genderChart = null
+let gradeChart = null
+
+// 计算统计数据
+const calculateStatistics = () => {
+  statistics.total = studentList.value.length
+  statistics.active = studentList.value.filter(s => s.status === 1).length
+  statistics.male = studentList.value.filter(s => s.gender === '男').length
+  statistics.female = studentList.value.filter(s => s.gender === '女').length
+}
+
+// 初始化院系分布图表
+const initDepartmentChart = () => {
+  if (!departmentChartRef.value) return
+  
+  departmentChart = echarts.init(departmentChartRef.value)
+  const departmentData = departmentOptions.value.map(dept => ({
+    name: dept.name,
+    value: studentList.value.filter(s => s.department === dept.id).length
+  }))
+
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c}人 ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left'
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: '50%',
+        data: departmentData,
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }
+      }
+    ]
+  }
+
+  departmentChart.setOption(option)
+}
+
+// 初始化班级分布图表
+const initClassChart = () => {
+  if (!classChartRef.value) return
+  
+  classChart = echarts.init(classChartRef.value)
+  const classData = classOptions.value.map(cls => ({
+    name: cls.name,
+    value: studentList.value.filter(s => s.className === cls.name).length
+  }))
+
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      }
+    },
+    xAxis: {
+      type: 'category',
+      data: classData.map(item => item.name),
+      axisLabel: {
+        rotate: 45
+      }
+    },
+    yAxis: {
+      type: 'value',
+      name: '人数'
+    },
+    series: [
+      {
+        type: 'bar',
+        data: classData.map(item => item.value),
+        label: {
+          show: true,
+          position: 'top'
+        }
+      }
+    ]
+  }
+
+  classChart.setOption(option)
+}
+
+// 初始化性别比例图表
+const initGenderChart = () => {
+  if (!genderChartRef.value) return
+  
+  genderChart = echarts.init(genderChartRef.value)
+  const genderData = [
+    { name: '男生', value: statistics.male },
+    { name: '女生', value: statistics.female }
+  ]
+
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c}人 ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      left: 'left'
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        label: {
+          show: true,
+          position: 'outside',
+          formatter: '{b}: {c}人'
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: '16',
+            fontWeight: 'bold'
+          }
+        },
+        data: genderData
+      }
+    ]
+  }
+
+  genderChart.setOption(option)
+}
+
+// 初始化成绩分布图表
+const initGradeChart = () => {
+  if (!gradeChartRef.value) return
+  
+  gradeChart = echarts.init(gradeChartRef.value)
+  // 模拟成绩数据
+  const gradeRanges = ['90-100', '80-89', '70-79', '60-69', '0-59']
+  const gradeData = gradeRanges.map(range => ({
+    name: range,
+    value: Math.floor(Math.random() * 30)
+  }))
+
+  const option = {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow'
+      }
+    },
+    xAxis: {
+      type: 'category',
+      data: gradeRanges
+    },
+    yAxis: {
+      type: 'value',
+      name: '人数'
+    },
+    series: [
+      {
+        type: 'bar',
+        data: gradeData.map(item => item.value),
+        label: {
+          show: true,
+          position: 'top'
+        }
+      }
+    ]
+  }
+
+  gradeChart.setOption(option)
+}
+
+// 更新所有统计和图表
+const updateStatistics = () => {
+  calculateStatistics()
+  initDepartmentChart()
+  initClassChart()
+  initGenderChart()
+  initGradeChart()
+}
+
+// 监听窗口大小变化
+window.addEventListener('resize', () => {
+  departmentChart?.resize()
+  classChart?.resize()
+  genderChart?.resize()
+  gradeChart?.resize()
+})
+
+// 监听学期变化
+watch(() => gradeStats.semester, () => {
+  initGradeChart()
+})
+
+// 组件挂载时初始化图表
+onMounted(() => {
+  updateStatistics()
+})
+
 // 方法
 const handleQuery = () => {
   loading.value = true
@@ -349,6 +676,7 @@ const handleQuery = () => {
   studentList.value = displayList
   
   loading.value = false
+  updateStatistics()
 }
 
 const handleSizeChange = (val) => {
@@ -560,5 +888,44 @@ const reloadData = () => {
 
 .upload-demo {
   display: inline-block;
+}
+
+/* 添加统计相关样式 */
+.statistics-cards {
+  margin-bottom: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-content {
+  text-align: center;
+}
+
+.card-content h2 {
+  margin: 0;
+  color: #409EFF;
+}
+
+.statistics-charts {
+  margin-bottom: 20px;
+}
+
+.chart-container {
+  height: 300px;
+}
+
+/* 优化图表布局 */
+.statistics-charts .el-card {
+  margin-bottom: 20px;
+}
+
+/* 优化图表标题样式 */
+.card-header span {
+  font-weight: bold;
+  color: #303133;
 }
 </style> 
