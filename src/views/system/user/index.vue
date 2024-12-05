@@ -41,7 +41,12 @@
         <el-table-column prop="createTime" label="创建时间" width="120" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-switch v-model="row.status" :active-value="1" :inactive-value="0" />
+            <el-switch
+              v-model="row.status"
+              :active-value="1"
+              :inactive-value="0"
+              @change="handleStatusChange(row)"
+            />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="250" align="center">
@@ -73,13 +78,13 @@
           <el-input v-model="userForm.name" />
         </el-form-item>
         <el-form-item label="用户类型" prop="userType">
-          <el-select v-model="userForm.userType">
+          <el-select v-model="userForm.userType" :disabled="dialog.type === 'edit'">
             <el-option label="管理员" value="admin" />
             <el-option label="教师" value="teacher" />
             <el-option label="学生" value="student" />
           </el-select>
         </el-form-item>
-        <el-form-item label="所属部门" prop="department">
+        <el-form-item label="所属部门" prop="department" v-if="userForm.userType !== 'admin'">
           <el-select v-model="userForm.department">
             <el-option
               v-for="dept in departmentOptions"
@@ -104,9 +109,11 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSystemStore, useUserStore } from '@/store'
+import { useDataStore } from '@/store'
 
 const systemStore = useSystemStore()
 const userStore = useUserStore()
+const dataStore = useDataStore()
 
 const loading = ref(false)
 const userList = ref([])
@@ -145,7 +152,8 @@ const departmentOptions = computed(() => {
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, message: '用户名长度不能小于3位', trigger: 'blur' }
+    { min: 3, message: '用户名长度不能小于3位', trigger: 'blur' },
+    { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '用户名必须以字母开头，只能包含字母、数字和下划线', trigger: 'blur' }
   ],
   name: [
     { required: true, message: '请输入姓名', trigger: 'blur' }
@@ -217,12 +225,61 @@ const submitForm = async () => {
         throw new Error('用户名已存在')
       }
       
+      // 添加用户
       systemStore.addUser(userForm)
       // 为新用户设置默认密码
       userStore.passwords[userForm.username] = '123456'
+
+      // 根据用户类型添加到对应列表
+      if (userForm.userType === 'student') {
+        dataStore.addStudent({
+          id: userForm.username,
+          name: userForm.name,
+          gender: '未设置',
+          department: userForm.department,
+          class: '未分配',
+          phone: '',
+          email: '',
+          status: 1
+        })
+      } else if (userForm.userType === 'teacher') {
+        dataStore.addTeacher({
+          id: userForm.username,
+          name: userForm.name,
+          department: userForm.department,
+          title: '未设置',
+          phone: '',
+          email: '',
+          status: 1
+        })
+      }
+
       ElMessage.success('添加成功')
     } else {
+      // 更新用户基本信息
       systemStore.updateUser(userForm)
+      
+      // 同步更新对应列表中的信息
+      if (userForm.userType === 'student') {
+        const student = dataStore.students.find(s => s.id === userForm.username)
+        if (student) {
+          dataStore.updateStudent({
+            ...student,
+            name: userForm.name,
+            department: userForm.department
+          })
+        }
+      } else if (userForm.userType === 'teacher') {
+        const teacher = dataStore.teachers.find(t => t.id === userForm.username)
+        if (teacher) {
+          dataStore.updateTeacher({
+            ...teacher,
+            name: userForm.name,
+            department: userForm.department
+          })
+        }
+      }
+      
       ElMessage.success('修改成功')
     }
     
@@ -238,9 +295,20 @@ const handleDelete = (row) => {
   ElMessageBox.confirm('确认要删除该用户吗？删除后无法恢复', '警告', {
     type: 'warning'
   }).then(() => {
+    const dataStore = useDataStore()
+    
+    // 删除用户
     systemStore.deleteUser(row.username)
-    // 同时删除用户密码
+    // 删除密码
     delete userStore.passwords[row.username]
+    
+    // 从对应列表中删除
+    if (row.userType === 'student') {
+      dataStore.deleteStudent(row.username)
+    } else if (row.userType === 'teacher') {
+      dataStore.deleteTeacher(row.username)
+    }
+    
     ElMessage.success('删除成功')
     handleQuery()
   }).catch(() => {})
@@ -254,6 +322,39 @@ const handleResetPassword = (row) => {
     systemStore.resetUserPassword(row.username)
     ElMessage.success('密码已重置为：123456')
   }).catch(() => {})
+}
+
+// 添加状态变更处理方法
+const handleStatusChange = async (row) => {
+  try {
+    // 更新用户状态
+    systemStore.updateUser(row)
+    
+    // 同步更新对应列表中的状态
+    if (row.userType === 'student') {
+      const student = dataStore.students.find(s => s.id === row.username)
+      if (student) {
+        dataStore.updateStudent({
+          ...student,
+          status: row.status
+        })
+      }
+    } else if (row.userType === 'teacher') {
+      const teacher = dataStore.teachers.find(t => t.id === row.username)
+      if (teacher) {
+        dataStore.updateTeacher({
+          ...teacher,
+          status: row.status
+        })
+      }
+    }
+    
+    ElMessage.success(`已${row.status === 1 ? '启用' : '禁用'}该用户`)
+  } catch (error) {
+    ElMessage.error('操作失败')
+    // 恢复状态
+    row.status = row.status === 1 ? 0 : 1
+  }
 }
 </script>
 

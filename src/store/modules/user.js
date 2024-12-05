@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { getToken, setToken, removeToken } from '@/utils/auth'
 import { useSystemStore } from '@/store'
+import { useDataStore } from '@/store'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -24,6 +25,7 @@ export const useUserStore = defineStore('user', {
       try {
         const { username, password } = userInfo
         const systemStore = useSystemStore()
+        const dataStore = useDataStore()
         
         // 验证密码
         if (this.passwords[username] !== password) {
@@ -34,6 +36,19 @@ export const useUserStore = defineStore('user', {
         const user = systemStore.users.find(u => u.username === username)
         if (!user || user.status !== 1) {
           throw new Error('用户不存在或已被禁用')
+        }
+
+        // 检查用户是否在对应的列表中
+        if (user.userType === 'student') {
+          const student = dataStore.students.find(s => s.id === username)
+          if (!student) {
+            throw new Error('该学生未被添加到系统中，请联系管理员添加到对应的班级和部门')
+          }
+        } else if (user.userType === 'teacher') {
+          const teacher = dataStore.teachers.find(t => t.id === username)
+          if (!teacher) {
+            throw new Error('该教师未被添加到系统中，请联系管理员添加到对应的部门')
+          }
         }
 
         // 设置 token
@@ -51,7 +66,7 @@ export const useUserStore = defineStore('user', {
         
         return true
       } catch (error) {
-        return false
+        throw error // 抛出错误以便显示具体的错误信息
       }
     },
 

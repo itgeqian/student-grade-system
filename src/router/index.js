@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '@/layout/index.vue'
 import { useUserStore } from '@/store'
 import { ElMessage } from 'element-plus'
+import { useDataStore } from '@/store'
 
 export const routes = [
   {
@@ -125,32 +126,42 @@ const rolePermissions = {
 }
 
 // 修改路由守卫实现
-router.beforeEach((to, from, next) => {
-  // 登录页面直接放行
+router.beforeEach(async (to, from, next) => {
+  const userStore = useUserStore()
+  const dataStore = useDataStore()
+  const token = userStore.token
+  const userInfo = userStore.userInfo
+
   if (to.path === '/login') {
     next()
     return
   }
 
-  const userStore = useUserStore()
-  const token = userStore.token
-  const userType = userStore.userInfo.userType
-
-  // 未登录跳转到登录页
   if (!token) {
     next('/login')
     return
   }
 
-  // 首页直接放行
-  if (to.path === '/dashboard') {
-    next()
-    return
+  // 检查用户是否在对应列表中
+  if (userInfo.userType === 'student') {
+    const student = dataStore.students.find(s => s.id === userInfo.username)
+    if (!student) {
+      ElMessage.error('您的信息未完善，请联系管理员')
+      next('/dashboard')
+      return
+    }
+  } else if (userInfo.userType === 'teacher') {
+    const teacher = dataStore.teachers.find(t => t.id === userInfo.username)
+    if (!teacher) {
+      ElMessage.error('您的信息未完善，请联系管理员')
+      next('/dashboard')
+      return
+    }
   }
 
   // 检查路由权限
   const routeName = to.matched[0]?.name
-  if (!routeName || rolePermissions[userType]?.includes(routeName)) {
+  if (!routeName || rolePermissions[userInfo.userType]?.includes(routeName)) {
     next()
   } else {
     ElMessage.error('您没有访问该页面的权限')
