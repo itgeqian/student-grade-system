@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '@/layout/index.vue'
-import store from '@/store'
+import { useUserStore } from '@/store'
 import { ElMessage } from 'element-plus'
 
 export const routes = [
@@ -60,19 +60,19 @@ export const routes = [
     path: '/course',
     component: Layout,
     name: 'Course',
-    meta: { title: '教务管理', icon: 'Reading' },
+    meta: { title: '课程管理', icon: 'Reading' },
     children: [
       {
         path: '/course/list',
         name: 'CourseList',
         component: () => import('@/views/course/list/index.vue'),
-        meta: { title: '课程管理' }
+        meta: { title: '课程列表' }
       },
       {
-        path: '/course/class',
-        name: 'CourseClass',
-        component: () => import('@/views/course/class/index.vue'),
-        meta: { title: '班级管理' }
+        path: '/course/selection',
+        name: 'CourseSelection',
+        component: () => import('@/views/course/selection/index.vue'),
+        meta: { title: '选课管理' }
       }
     ]
   },
@@ -119,9 +119,9 @@ const router = createRouter({
 
 // 定义角色权限映射
 const rolePermissions = {
-  admin: ['System', 'Course', 'Grade'], // 管理员可访问所有模块
-  teacher: ['Course', 'Grade'], // 教师可访问教务和成绩管理
-  student: ['Grade'] // 学生只能访问成绩查看
+  admin: ['Dashboard', 'System', 'Course', 'Grade'],
+  teacher: ['Dashboard', 'Course', 'Grade'],
+  student: ['Dashboard', 'Course', 'Grade']
 }
 
 // 修改路由守卫实现
@@ -132,8 +132,9 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  const token = store.state.user.token
-  const userType = store.state.user.userType
+  const userStore = useUserStore()
+  const token = userStore.token
+  const userType = userStore.userInfo.userType
 
   // 未登录跳转到登录页
   if (!token) {

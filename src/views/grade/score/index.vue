@@ -213,18 +213,19 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import * as XLSX from 'xlsx'
+import { useUserStore } from '@/store'
 
-const store = useStore()
-const userType = computed(() => store.state.user.userType)
+const userStore = useUserStore()
+const userType = computed(() => userStore.userInfo.userType)
 
 // 查询参数
 const queryParams = reactive({
+  pageNum: 1,
+  pageSize: 10,
   courseId: '',
-  classId: '',
-  studentId: ''
+  studentId: '',
+  studentName: ''
 })
 
 // 成绩设置
@@ -237,22 +238,22 @@ const scoreSettings = reactive({
 // 成绩列表
 const scoreList = ref([
   {
+    id: 1,
     studentId: '2021001',
     studentName: '张三',
-    className: '计算机2101',
+    courseName: '计算机导论',
     homeworkScore: 85,
-    experimentScore: 90,
-    finalScore: 88,
-    submitted: false
+    examScore: 88,
+    totalScore: 87
   },
   {
+    id: 2,
     studentId: '2021002',
     studentName: '李四',
-    className: '计算机2101',
-    homeworkScore: 92,
-    experimentScore: 88,
-    finalScore: 85,
-    submitted: false
+    courseName: '程序设计基础',
+    homeworkScore: 90,
+    examScore: 92,
+    totalScore: 91
   }
 ])
 
@@ -352,7 +353,7 @@ const handleSubmitToAdmin = () => {
 }
 
 const handleExport = () => {
-  const headers = ['学号', '姓名', '班级', '作业成绩', '实验成绩', '期末成绩', '总评成绩']
+  const headers = ['学号', '姓名', '班级', '作业成绩', '实验成���', '期末成绩', '总评成绩']
   const data = scoreList.value.map(item => [
     item.studentId,
     item.studentName,

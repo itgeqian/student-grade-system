@@ -5,99 +5,90 @@
         <h2 class="login-title">学生成绩管理系统</h2>
       </template>
       
-      <el-form ref="formRef" :model="formData" :rules="rules" label-width="0">
+      <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" label-width="0">
         <el-form-item prop="username">
           <el-input
-            v-model="formData.username"
+            v-model="loginForm.username"
             placeholder="用户名"
-            :prefix-icon="User"
+            prefix-icon="User"
           />
         </el-form-item>
         
         <el-form-item prop="password">
           <el-input
-            v-model="formData.password"
+            v-model="loginForm.password"
             type="password"
             placeholder="密码"
-            :prefix-icon="Lock"
+            prefix-icon="Lock"
+            show-password
             @keyup.enter="handleLogin"
           />
         </el-form-item>
-
+        
         <el-form-item prop="userType">
-          <el-select v-model="formData.userType" placeholder="请选择用户类型" style="width: 100%">
+          <el-select v-model="loginForm.userType" placeholder="请选择用户类型" style="width: 100%">
             <el-option label="管理员" value="admin" />
             <el-option label="教师" value="teacher" />
             <el-option label="学生" value="student" />
           </el-select>
         </el-form-item>
-
+        
         <el-form-item>
-          <el-button
-            :loading="loading"
-            type="primary"
-            style="width: 100%"
-            @click="handleLogin"
-          >
+          <el-button type="primary" :loading="loading" style="width: 100%" @click="handleLogin">
             登录
           </el-button>
         </el-form-item>
-
-        <div class="tips">
-          <p>管理员账号: admin / 123456</p>
-          <p>教师账号: teacher / 123456</p>
-          <p>学生账号: student / 123456</p>
-        </div>
       </el-form>
+
+      <div class="login-tips">
+        <p>管理员账号：admin / 123456</p>
+        <p>教师账号：teacher / 123456</p>
+        <p>学生账号：student / 123456</p>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store'
 import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
 
-const store = useStore()
 const router = useRouter()
-const formRef = ref(null)
+const userStore = useUserStore()
+const loginFormRef = ref(null)
 const loading = ref(false)
 
-const formData = reactive({
+const loginForm = reactive({
   username: '',
   password: '',
   userType: ''
 })
 
-const rules = {
+const loginRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
   userType: [{ required: true, message: '请选择用户类型', trigger: 'change' }]
 }
 
 const handleLogin = async () => {
-  if (!formRef.value) return
+  if (!loginFormRef.value) return
   
   try {
-    await formRef.value.validate()
+    await loginFormRef.value.validate()
     loading.value = true
     
-    // 模拟登录验证
-    if (
-      (formData.username === 'admin' && formData.password === '123456' && formData.userType === 'admin') ||
-      (formData.username === 'teacher' && formData.password === '123456' && formData.userType === 'teacher') ||
-      (formData.username === 'student' && formData.password === '123456' && formData.userType === 'student')
-    ) {
-      await store.dispatch('user/login', formData)
+    const success = await userStore.login(loginForm)
+    if (success) {
       ElMessage.success('登录成功')
       router.push('/')
     } else {
       ElMessage.error('用户名或密码错误')
     }
   } catch (error) {
-    ElMessage.error(error.message || '登录失败')
+    console.error('登录失败:', error)
+    ElMessage.error('登录失败，请重试')
   } finally {
     loading.value = false
   }
@@ -106,11 +97,11 @@ const handleLogin = async () => {
 
 <style scoped>
 .login-container {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #f3f3f3;
+  background-color: #f5f7fa;
 }
 
 .login-card {
@@ -119,17 +110,20 @@ const handleLogin = async () => {
 
 .login-title {
   text-align: center;
-  color: #303133;
   margin: 0;
+  color: #303133;
 }
 
-.tips {
+.login-tips {
   margin-top: 20px;
-  color: #666;
+  padding-top: 20px;
+  border-top: 1px solid #ebeef5;
+  color: #909399;
+  font-size: 14px;
+  text-align: center;
 }
 
-.tips p {
+.login-tips p {
   margin: 5px 0;
-  font-size: 13px;
 }
 </style> 

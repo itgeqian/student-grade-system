@@ -307,6 +307,10 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
 import * as echarts from 'echarts'
+import { useDataStore } from '@/store'
+
+const dataStore = useDataStore()
+const studentList = ref([])
 
 // 查询参数
 const queryParams = reactive({
@@ -330,32 +334,6 @@ const classOptions = ref([
   { id: 1, name: '计算机2101', department: 1 },
   { id: 2, name: '计算机2102', department: 1 },
   { id: 3, name: '软件2101', department: 2 }
-])
-
-// 学生列表数据
-const studentList = ref([
-  {
-    id: '2021001',
-    name: '张三',
-    gender: '男',
-    className: '计算机2101',
-    department: '计算机学院',
-    phone: '13800138000',
-    email: 'zhangsan@example.com',
-    status: 1,
-    remark: ''
-  },
-  {
-    id: '2021002',
-    name: '李四',
-    gender: '女',
-    className: '计算机2101',
-    department: '计算机学院',
-    phone: '13800138001',
-    email: 'lisi@example.com',
-    status: 1,
-    remark: ''
-  }
 ])
 
 const loading = ref(false)
@@ -410,7 +388,7 @@ const rules = {
 
 const studentFormRef = ref(null)
 
-// 选课记录对话框相关
+// 选课记录对话框���关
 const courseDialog = reactive({
   visible: false,
   list: []
@@ -641,6 +619,7 @@ watch(() => gradeStats.semester, () => {
 
 // 组件挂载时初始化图表
 onMounted(() => {
+  studentList.value = dataStore.students
   updateStatistics()
 })
 
@@ -728,7 +707,8 @@ const handleDelete = (row) => {
   ElMessageBox.confirm('确认要删除该学生吗？删除后无法恢复', '警告', {
     type: 'warning'
   }).then(() => {
-    studentList.value = studentList.value.filter(item => item.id !== row.id)
+    dataStore.deleteStudent(row.id)
+    studentList.value = dataStore.students
     ElMessage.success('删除成功')
   }).catch(() => {})
 }
@@ -764,36 +744,18 @@ const handleDepartmentChange = (value) => {
 }
 
 const submitForm = async () => {
-  if (!studentFormRef.value) return
-
-  try {
-    await studentFormRef.value.validate()
-    if (dialog.type === 'add') {
-      // TODO: 调用API添加学生
-      studentList.value.push({
-        ...studentForm,
-        className: classOptions.value.find(item => item.id === studentForm.class)?.name,
-        department: departmentOptions.value.find(item => item.id === studentForm.department)?.name
-      })
-    } else {
-      // TODO: 调用API更新学生
-      const index = studentList.value.findIndex(item => item.id === studentForm.id)
-      if (index !== -1) {
-        studentList.value[index] = {
-          ...studentList.value[index],
-          ...studentForm,
-          className: classOptions.value.find(item => item.id === studentForm.class)?.name,
-          department: departmentOptions.value.find(item => item.id === studentForm.department)?.name
-        }
-      }
-    }
-    
-    dialog.visible = false
-    ElMessage.success(dialog.type === 'add' ? '添加成功' : '修改成功')
-    handleQuery()
-  } catch (error) {
-    console.error('表单验证失败:', error)
+  if (dialog.type === 'add') {
+    dataStore.addStudent({
+      ...studentForm,
+      id: 'S' + Date.now() // 生成临时ID
+    })
+    ElMessage.success('添加成功')
+  } else {
+    dataStore.updateStudent(studentForm)
+    ElMessage.success('修改成功')
   }
+  dialog.visible = false
+  studentList.value = dataStore.students
 }
 
 // 处理导入Excel
@@ -923,7 +885,7 @@ const reloadData = () => {
   margin-bottom: 20px;
 }
 
-/* 优化图表标题样式 */
+/* 优化图���标题样式 */
 .card-header span {
   font-weight: bold;
   color: #303133;

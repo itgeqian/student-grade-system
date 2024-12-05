@@ -307,13 +307,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onUnmounted } from 'vue'
-import { useStore } from 'vuex'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import Upload from '@/components/Upload/index.vue'
+import { useUserStore } from '@/store'
 
-const store = useStore()
-const userType = computed(() => store.state.user.userType)
+const userStore = useUserStore()
+const userType = computed(() => userStore.userInfo.userType)
 
 // 查询参数
 const queryParams = reactive({
@@ -467,7 +466,7 @@ const handleFileChange = (file, fileList) => {
 
 const submitHomework = async () => {
   // TODO: 调用API保存作业
-  ElMessage.success('作业布���成功')
+  ElMessage.success('作业布成功')
   homeworkDialog.visible = false
   handleQuery()
 }
@@ -621,11 +620,6 @@ const resetDialogs = () => {
   viewDialog.visible = false
   currentHomework.value = null
 }
-
-// 组件卸载时清理
-onUnmounted(() => {
-  resetDialogs()
-})
 </script>
 
 <style scoped>

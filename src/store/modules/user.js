@@ -1,54 +1,57 @@
+import { defineStore } from 'pinia'
 import { getToken, setToken, removeToken } from '@/utils/auth'
 
-const state = {
-  token: getToken(),
-  userInfo: null,
-  userType: ''
-}
+export const useUserStore = defineStore('user', {
+  state: () => ({
+    token: getToken(),
+    userInfo: {
+      username: '',
+      name: '',
+      userType: '', // admin, teacher, student
+      department: ''
+    }
+  }),
 
-const mutations = {
-  SET_TOKEN: (state, token) => {
-    state.token = token
+  actions: {
+    // 登录
+    async login(userInfo) {
+      try {
+        const { username, userType } = userInfo
+        const token = `token-${username}-${userType}`
+        this.token = token
+        setToken(token)
+        
+        this.userInfo = {
+          username,
+          name: username === 'admin' ? '管理员' : 
+                username === 'teacher' ? '张老师' : '张三',
+          userType: username === 'admin' ? 'admin' : 
+                   username === 'teacher' ? 'teacher' : 'student',
+          department: username !== 'admin' ? '计算机学院' : ''
+        }
+        
+        return true
+      } catch (error) {
+        return false
+      }
+    },
+
+    // 登出
+    async logout() {
+      this.token = ''
+      this.userInfo = {
+        username: '',
+        name: '',
+        userType: '',
+        department: ''
+      }
+      removeToken()
+    }
   },
-  SET_USER_INFO: (state, userInfo) => {
-    state.userInfo = userInfo
-  },
-  SET_USER_TYPE: (state, userType) => {
-    state.userType = userType
+
+  persist: {
+    key: 'user-state',
+    storage: localStorage,
+    paths: ['token', 'userInfo']
   }
-}
-
-const actions = {
-  // 登录
-  login({ commit }, userInfo) {
-    const { username, password, userType } = userInfo
-    return new Promise((resolve) => {
-      // 模拟登录成功
-      const token = `token-${username}-${userType}`
-      commit('SET_TOKEN', token)
-      commit('SET_USER_TYPE', userType)
-      commit('SET_USER_INFO', {
-        username,
-        userType,
-        name: username === 'admin' ? '管理员' : username === 'teacher' ? '教师' : '学生'
-      })
-      setToken(token)
-      resolve()
-    })
-  },
-
-  // 登出
-  logout({ commit }) {
-    commit('SET_TOKEN', '')
-    commit('SET_USER_INFO', null)
-    commit('SET_USER_TYPE', '')
-    removeToken()
-  }
-}
-
-export default {
-  namespaced: true,
-  state,
-  mutations,
-  actions
-} 
+}) 

@@ -14,31 +14,34 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { useStore } from 'vuex'
+import { useUserStore } from '@/store'
 import { routes } from '@/router'
 import SidebarItem from './SidebarItem.vue'
 
 const route = useRoute()
-const store = useStore()
+const userStore = useUserStore()
 const activeMenu = computed(() => route.path)
 
 // 根据用户类型过滤路由
 const permissionRoutes = computed(() => {
-  const userType = store.state.user.userType
+  const userType = userStore.userInfo.userType
   const rolePermissions = {
     admin: ['Dashboard', 'System', 'Course', 'Grade'],
     teacher: ['Dashboard', 'Course', 'Grade'],
-    student: ['Dashboard', 'Grade']
+    student: ['Dashboard', 'Course', 'Grade']
   }
 
   const allowedRoutes = rolePermissions[userType] || []
   
   return routes.filter(route => {
-    // 始终显示首页
     if (route.path === '/') return true
-    // 登录页不显示
     if (route.path === '/login') return false
-    // 根据权限过滤其他页面
+    
+    // 如果是学生，只显示选课管理
+    if (userType === 'student' && route.path === '/course') {
+      route.children = route.children.filter(child => child.path === 'selection')
+    }
+    
     return allowedRoutes.includes(route.name)
   })
 })
