@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { getToken, setToken, removeToken } from '@/utils/auth'
+import { useSystemStore } from '@/store'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -7,8 +8,13 @@ export const useUserStore = defineStore('user', {
     userInfo: {
       username: '',
       name: '',
-      userType: '', // admin, teacher, student
+      userType: '',
       department: ''
+    },
+    passwords: {
+      admin: '123456',
+      teacher: '123456',
+      student: '123456'
     }
   }),
 
@@ -16,18 +22,31 @@ export const useUserStore = defineStore('user', {
     // 登录
     async login(userInfo) {
       try {
-        const { username, userType } = userInfo
-        const token = `token-${username}-${userType}`
+        const { username, password } = userInfo
+        const systemStore = useSystemStore()
+        
+        // 验证密码
+        if (this.passwords[username] !== password) {
+          throw new Error('用户名或密码错误')
+        }
+
+        // 从 system store 中获取用户信息
+        const user = systemStore.users.find(u => u.username === username)
+        if (!user || user.status !== 1) {
+          throw new Error('用户不存在或已被禁用')
+        }
+
+        // 设置 token
+        const token = `token-${username}-${user.userType}`
         this.token = token
         setToken(token)
         
+        // 设置用户信息
         this.userInfo = {
-          username,
-          name: username === 'admin' ? '管理员' : 
-                username === 'teacher' ? '张老师' : '张三',
-          userType: username === 'admin' ? 'admin' : 
-                   username === 'teacher' ? 'teacher' : 'student',
-          department: username !== 'admin' ? '计算机学院' : ''
+          username: user.username,
+          name: user.name,
+          userType: user.userType,
+          department: user.department
         }
         
         return true
@@ -46,12 +65,35 @@ export const useUserStore = defineStore('user', {
         department: ''
       }
       removeToken()
+    },
+
+    // 修改密码
+    async updatePassword(payload) {
+      const { oldPassword, newPassword } = payload
+      const { username } = this.userInfo
+      
+      if (this.passwords[username] !== oldPassword) {
+        throw new Error('原密码不正确')
+      }
+      
+      this.passwords[username] = newPassword
+      
+      this.token = ''
+      this.userInfo = {
+        username: '',
+        name: '',
+        userType: '',
+        department: ''
+      }
+      removeToken()
+      
+      return true
     }
   },
 
   persist: {
     key: 'user-state',
     storage: localStorage,
-    paths: ['token', 'userInfo']
+    paths: ['token', 'userInfo', 'passwords']
   }
 }) 

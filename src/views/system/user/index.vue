@@ -27,47 +27,31 @@
       </el-form>
 
       <!-- 用户列表 -->
-      <el-table :data="userList" v-loading="loading">
+      <el-table :data="userList" v-loading="loading" border>
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="name" label="姓名" width="120" />
         <el-table-column prop="userType" label="用户类型" width="100">
           <template #default="{ row }">
-            <el-tag :type="userTypeMap[row.userType].type">
-              {{ userTypeMap[row.userType].label }}
+            <el-tag :type="row.userType === 'admin' ? 'danger' : row.userType === 'teacher' ? 'warning' : 'info'">
+              {{ row.userType === 'admin' ? '管理员' : row.userType === 'teacher' ? '教师' : '学生' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="department" label="所属部门" />
-        <el-table-column prop="createTime" label="创建时间" width="180" />
+        <el-table-column prop="department" label="所属部门" width="150" />
+        <el-table-column prop="createTime" label="创建时间" width="120" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-switch
-              v-model="row.status"
-              :active-value="1"
-              :inactive-value="0"
-              @change="handleStatusChange(row)"
-            />
+            <el-switch v-model="row.status" :active-value="1" :inactive-value="0" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="250">
+        <el-table-column label="操作" width="250" align="center">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-            <el-button type="success" link @click="handleResetPwd(row)">重置密码</el-button>
+            <el-button type="warning" link @click="handleResetPassword(row)">重置密码</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination">
-        <el-pagination
-          v-model:current-page="queryParams.pageNum"
-          v-model:page-size="queryParams.pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 30, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-        />
-      </div>
     </el-card>
 
     <!-- 用户表单对话框 -->
@@ -83,62 +67,27 @@
         label-width="100px"
       >
         <el-form-item label="用户名" prop="username">
-          <el-input 
-            v-model="userForm.username" 
-            placeholder="请输入用户名"
-            :disabled="dialog.type === 'edit'"
-          />
+          <el-input v-model="userForm.username" :disabled="dialog.type === 'edit'" />
         </el-form-item>
         <el-form-item label="姓名" prop="name">
-          <el-input v-model="userForm.name" placeholder="请输入姓名" />
+          <el-input v-model="userForm.name" />
         </el-form-item>
         <el-form-item label="用户类型" prop="userType">
-          <el-select 
-            v-model="userForm.userType" 
-            placeholder="请选择用户类型"
-            @change="handleUserTypeChange"
-          >
+          <el-select v-model="userForm.userType">
             <el-option label="管理员" value="admin" />
             <el-option label="教师" value="teacher" />
             <el-option label="学生" value="student" />
           </el-select>
         </el-form-item>
-        <el-form-item 
-          label="所属部门" 
-          prop="department"
-          v-if="userForm.userType !== 'admin'"
-        >
-          <el-select v-model="userForm.department" placeholder="请选择部门">
-            <el-option 
-              v-for="dept in departmentOptions" 
-              :key="dept.id" 
-              :label="dept.name" 
-              :value="dept.id" 
+        <el-form-item label="所属部门" prop="department">
+          <el-select v-model="userForm.department">
+            <el-option
+              v-for="dept in departmentOptions"
+              :key="dept.id"
+              :label="dept.name"
+              :value="dept.name"
             />
           </el-select>
-        </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="dialog.type === 'add'">
-          <el-input 
-            v-model="userForm.password" 
-            type="password" 
-            placeholder="请输入密码"
-            show-password
-          />
-        </el-form-item>
-        <el-form-item label="确认密码" prop="confirmPassword" v-if="dialog.type === 'add'">
-          <el-input 
-            v-model="userForm.confirmPassword" 
-            type="password" 
-            placeholder="请确认密码"
-            show-password
-          />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input 
-            v-model="userForm.remark" 
-            type="textarea" 
-            placeholder="请输入备注信息"
-          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -152,223 +101,159 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useSystemStore, useUserStore } from '@/store'
+
+const systemStore = useSystemStore()
+const userStore = useUserStore()
+
+const loading = ref(false)
+const userList = ref([])
 
 // 查询参数
 const queryParams = reactive({
-  pageNum: 1,
-  pageSize: 10,
   username: '',
   userType: ''
 })
 
-// 用户类型映射
-const userTypeMap = {
-  admin: { label: '管理员', type: 'danger' },
-  teacher: { label: '教师', type: 'warning' },
-  student: { label: '学生', type: 'success' }
-}
-
-// 部门选项
-const departmentOptions = ref([
-  { id: 1, name: '计算机学院' },
-  { id: 2, name: '软件学院' },
-  { id: 3, name: '外国语学院' }
-])
-
-// 用户列表数据
-const userList = ref([
-  {
-    id: 1,
-    username: 'admin',
-    name: '管理员',
-    userType: 'admin',
-    department: null,
-    createTime: '2024-01-01',
-    status: 1
-  },
-  {
-    id: 2,
-    username: 'teacher1',
-    name: '张老师',
-    userType: 'teacher',
-    department: '计算机学院',
-    createTime: '2024-01-02',
-    status: 1
-  }
-])
-
-const loading = ref(false)
-const total = ref(2)
-
-// 表单相关
+// 对话框
 const dialog = reactive({
   visible: false,
   title: '',
   type: 'add'
 })
 
+// 表单
+const userFormRef = ref(null)
 const userForm = reactive({
   username: '',
   name: '',
   userType: '',
-  department: '',
-  password: '',
-  confirmPassword: '',
-  remark: ''
+  department: ''
 })
 
+// 部门选项
+const departmentOptions = computed(() => {
+  return [
+    { id: 1, name: '计算机学院' },
+    { id: 2, name: '信息学院' }
+  ]
+})
+
+// 表单验证规则
 const rules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 4, max: 20, message: '长度在 4 到 20 个字符', trigger: 'blur' }
+    { min: 3, message: '用户名长度不能小于3位', trigger: 'blur' }
   ],
   name: [
     { required: true, message: '请输入姓名', trigger: 'blur' }
   ],
   userType: [
     { required: true, message: '请选择用户类型', trigger: 'change' }
-  ],
-  department: [
-    { required: true, message: '请选择所属部门', trigger: 'change' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '长度在 6 到 20 个字符', trigger: 'blur' }
-  ],
-  confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
-    {
-      validator: (rule, value, callback) => {
-        if (value !== userForm.password) {
-          callback(new Error('两次输入的密码不一致'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
   ]
 }
 
-const userFormRef = ref(null)
+// 初始化数据
+onMounted(() => {
+  handleQuery()
+})
 
-// 方法
+// 查询用户列表
 const handleQuery = () => {
   loading.value = true
+  let list = systemStore.users
   
-  // 根据搜索条件过滤用户列表
-  const filteredList = userList.value.filter(user => {
-    const matchUsername = !queryParams.username || 
-      user.username.toLowerCase().includes(queryParams.username.toLowerCase())
-    const matchUserType = !queryParams.userType || 
-      user.userType === queryParams.userType
-    
-    return matchUsername && matchUserType
-  })
+  if (queryParams.username) {
+    list = list.filter(item => item.username.includes(queryParams.username))
+  }
+  if (queryParams.userType) {
+    list = list.filter(item => item.userType === queryParams.userType)
+  }
   
-  total.value = filteredList.length
-  
-  // 模拟分页
-  const start = (queryParams.pageNum - 1) * queryParams.pageSize
-  const end = start + queryParams.pageSize
-  userList.value = filteredList.slice(start, end)
-  
+  userList.value = list
   loading.value = false
 }
 
+// 重置查询
 const resetQuery = () => {
   queryParams.username = ''
   queryParams.userType = ''
   handleQuery()
 }
 
+// 新增用户
 const handleAdd = () => {
   dialog.type = 'add'
-  dialog.title = '添加用户'
+  dialog.title = '新增用户'
   dialog.visible = true
   Object.assign(userForm, {
     username: '',
     name: '',
     userType: '',
-    department: '',
-    password: '',
-    confirmPassword: '',
-    remark: ''
+    department: ''
   })
 }
 
+// 编辑用户
 const handleEdit = (row) => {
   dialog.type = 'edit'
   dialog.title = '编辑用户'
   dialog.visible = true
-  Object.assign(userForm, {
-    ...row,
-    password: '',
-    confirmPassword: ''
-  })
+  Object.assign(userForm, row)
 }
 
-const handleDelete = (row) => {
-  ElMessageBox.confirm('确认要删除该用户吗？', '警告', {
-    type: 'warning'
-  }).then(() => {
-    userList.value = userList.value.filter(item => item.id !== row.id)
-    ElMessage.success('删除成功')
-  }).catch(() => {})
-}
-
-const handleResetPwd = (row) => {
-  ElMessageBox.confirm('确认要重置该用户的密码吗？', '警告', {
-    type: 'warning'
-  }).then(() => {
-    // TODO: 调用API重置密码
-    ElMessage.success('密码重置成功')
-  }).catch(() => {})
-}
-
-const handleStatusChange = (row) => {
-  const text = row.status === 1 ? '启用' : '停用'
-  ElMessage.success(`已${text}用户：${row.username}`)
-}
-
-const handleUserTypeChange = (value) => {
-  if (value === 'admin') {
-    userForm.department = ''
-  }
-}
-
+// 提交表单
 const submitForm = async () => {
   if (!userFormRef.value) return
-
+  
   try {
     await userFormRef.value.validate()
+    
     if (dialog.type === 'add') {
-      // TODO: 调用API添加用户
-      userList.value.push({
-        id: userList.value.length + 1,
-        ...userForm,
-        createTime: new Date().toLocaleString(),
-        status: 1
-      })
-    } else {
-      // TODO: 调用API更新用户
-      const index = userList.value.findIndex(item => item.username === userForm.username)
-      if (index !== -1) {
-        userList.value[index] = {
-          ...userList.value[index],
-          ...userForm
-        }
+      // 检查用户名是否已存在
+      if (systemStore.users.some(user => user.username === userForm.username)) {
+        throw new Error('用户名已存在')
       }
+      
+      systemStore.addUser(userForm)
+      // 为新用户设置默认密码
+      userStore.passwords[userForm.username] = '123456'
+      ElMessage.success('添加成功')
+    } else {
+      systemStore.updateUser(userForm)
+      ElMessage.success('修改成功')
     }
     
     dialog.visible = false
-    ElMessage.success(dialog.type === 'add' ? '添加成功' : '修改成功')
     handleQuery()
   } catch (error) {
-    console.error('表单验证失败:', error)
+    ElMessage.error(error.message || '操作失败')
   }
+}
+
+// 删除用户
+const handleDelete = (row) => {
+  ElMessageBox.confirm('确认要删除该用户吗？删除后无法恢复', '警告', {
+    type: 'warning'
+  }).then(() => {
+    systemStore.deleteUser(row.username)
+    // 同时删除用户密码
+    delete userStore.passwords[row.username]
+    ElMessage.success('删除成功')
+    handleQuery()
+  }).catch(() => {})
+}
+
+// 重置密码
+const handleResetPassword = (row) => {
+  ElMessageBox.confirm('确认要重置该用户的密码吗？', '警告', {
+    type: 'warning'
+  }).then(() => {
+    systemStore.resetUserPassword(row.username)
+    ElMessage.success('密码已重置为：123456')
+  }).catch(() => {})
 }
 </script>
 
@@ -385,11 +270,5 @@ const submitForm = async () => {
 
 .search-form {
   margin-bottom: 20px;
-}
-
-.pagination {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
 }
 </style> 
